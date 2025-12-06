@@ -2,76 +2,74 @@ using System.Collections.Generic;
 using UnityEngine;
 using Mediapipe.Unity.Sample.PoseLandmarkDetection;
 using Mediapipe.Tasks.Vision.PoseLandmarker;
-using Mediapipe.Tasks.Components.Containers;
 
 public class PoseDetectionProvider : MonoBehaviour
 {
     public PoseLandmarkerRunner runner;
 
-    private PoseLandmarkerResult _latest;
+    // Lock object for thread safety
+    private readonly object _lock = new object();
+    
+    // Store the latest result safely
+    private PoseLandmarkerResult _latestResult;
+    private bool _hasData = false;
 
     private void OnEnable()
     {
-        if (runner == null)
-        {
-            Debug.LogError("PoseLandmarkerRunner missing!");
-            return;
-        }
-        // This will now work because we added the event to the Runner
-        runner.OnResult += OnPoseResult;
+        if (runner != null) runner.OnResult += OnPoseResult;
     }
 
     private void OnDisable()
     {
-        if (runner != null)
-            runner.OnResult -= OnPoseResult;
+        if (runner != null) runner.OnResult -= OnPoseResult;
     }
 
-    private void OnPoseResult(PoseLandmarkerResult result)
+    // Runs on Background Thread (MediaPipe)
+// In PoseDetectionProvider.cs inside OnPoseResult
+private void OnPoseResult(PoseLandmarkerResult result)
+{
+    lock (_lock)
     {
-        _latest = result;
+        // Don't just assign reference; ensure we aren't holding a list that C++ might clear
+        _latestResult = result; 
+        _hasData = true;
     }
+}
 
-    public bool HasPose()
-    {
-        // FIX: Removed "_latest != null" check because it is a struct.
-        // We only check if the internal list 'poseLandmarks' is valid.
-        return _latest.poseLandmarks != null &&
-               _latest.poseLandmarks.Count > 0 &&
-               _latest.poseLandmarks[0].landmarks != null;
-    }
-
-    public IList<NormalizedLandmark> GetFirstPose()
-    {
-        if (!HasPose())
-            return null;
-
-        return _latest.poseLandmarks[0].landmarks;
-    }
-
+    // Runs on Main Thread (Game)
     public List<Vector3[]> GetAllDetectedPoseKeypoints()
     {
-        List<Vector3[]> all = new List<Vector3[]>();
+        List<Vector3[]> allPoses = new List<Vector3[]>();
 
-        if (!HasPose())
-            return all;
-
-        foreach (var pose in _latest.poseLandmarks)
+        lock (_lock)
         {
-            // FIX: Removed "pose == null" check because it is a struct.
-            if (pose.landmarks == null)
-                continue;
-
-            Vector3[] arr = new Vector3[pose.landmarks.Count];
-            for (int i = 0; i < pose.landmarks.Count; i++)
+            // Safety Checks
+            if (!_hasData || 
+                _latestResult.poseLandmarks == null || 
+                _latestResult.poseLandmarks.Count == 0) 
             {
-                var lm = pose.landmarks[i];
-                arr[i] = new Vector3((float)lm.x, (float)lm.y, (float)lm.z);
+                return allPoses;
             }
 
-            all.Add(arr);
+            foreach (var pose in _latestResult.poseLandmarks)
+            {
+                if (pose.landmarks == null || pose.landmarks.Count == 0) continue;
+
+                // Create array of exactly 33 points (Standard BlazePose)
+                // We use 33 because BlazePose always has 33 landmarks.
+                int count = pose.landmarks.Count;
+                Vector3[] landmarks = new Vector3[count];
+
+                for (int i = 0; i < count; i++)
+                {
+                    var lm = pose.landmarks[i];
+                    landmarks[i] = new Vector3((float)lm.x, (float)lm.y, (float)lm.z);
+                }
+
+                allPoses.Add(landmarks);
+            }
         }
 
-        return all;
+        return allPoses;
     }
 }

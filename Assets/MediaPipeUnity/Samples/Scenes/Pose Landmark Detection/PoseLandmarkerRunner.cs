@@ -27,6 +27,13 @@ namespace Mediapipe.Unity.Sample.PoseLandmarkDetection
     protected override IEnumerator Run()
     {
       config.NumPoses = 2;
+    config.Model = ModelType.BlazePoseLite;          // ✅ use lite model
+    config.OutputSegmentationMasks = false;          // ✅ extra speed (you don't use masks)
+
+
+      //config.MinPoseDetectionConfidence = 0.1F;
+      //config.MinPosePresenceConfidence = 0.1F;
+      //config.MinTrackingConfidence = 0.1F;
       // (Keep existing Run code exactly as it is...)
       Debug.Log($"Delegate = {config.Delegate}");
       Debug.Log($"Image Read Mode = {config.ImageReadMode}");

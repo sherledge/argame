@@ -42,42 +42,79 @@ public class ResultsPanelManager : MonoBehaviour
     }
 
     // The method signature has been simplified.
-    public void ShowResults(int p1TotalScore, int p2TotalScore, Texture2D p1Image, Texture2D p2Image)
+public void ShowResults(int p1TotalScore, int p2TotalScore, Texture2D p1Image, Texture2D p2Image)
+{
+    resultPanel.SetActive(true);
+
+    // PLAYER 1 IMAGE
+    if (player1ResultImage != null)
     {
-        resultPanel.SetActive(true);
+        Texture tex = p1Image;
 
-        // All logic for video data and thumbnails has been removed.
-
-        if (player1ResultImage != null && p1Image != null)
-            player1ResultImage.texture = p1Image;
-
-        if (player2ResultImage != null && p2Image != null)
-            player2ResultImage.texture = p2Image;
-
-        finalPlayer1ScoreText.text = $"{p1TotalScore}";
-        finalPlayer2ScoreText.text = $"{p2TotalScore}";
-
-        player1CrownIcon.SetActive(false);
-        player2CrownIcon.SetActive(false);
-        drawMessage.SetActive(false);
-        winnerText.gameObject.SetActive(true);
-
-        if (p1TotalScore > p2TotalScore)
+        // If no explicit image passed, use the left overlay texture from detection
+        if (tex == null && detection != null && detection.leftOverlay != null)
         {
-            winnerText.text = "Player B Wins!";
-            player1CrownIcon.SetActive(true);
+            tex = detection.leftOverlay.texture;
         }
-        else if (p2TotalScore > p1TotalScore)
+
+        if (tex != null)
         {
-            winnerText.text = "Player A Wins!";
-            player2CrownIcon.SetActive(true);
+            player1ResultImage.texture = tex;
+            player1ResultImage.gameObject.SetActive(true);
         }
         else
         {
-            winnerText.gameObject.SetActive(false);
-            drawMessage.SetActive(true);
+            player1ResultImage.gameObject.SetActive(false);
         }
     }
+
+    // PLAYER 2 IMAGE
+    if (player2ResultImage != null)
+    {
+        Texture tex = p2Image;
+
+        // If no explicit image passed, use the right overlay texture from detection
+        if (tex == null && detection != null && detection.rightOverlay != null)
+        {
+            tex = detection.rightOverlay.texture;
+        }
+
+        if (tex != null)
+        {
+            player2ResultImage.texture = tex;
+            player2ResultImage.gameObject.SetActive(true);
+        }
+        else
+        {
+            player2ResultImage.gameObject.SetActive(false);
+        }
+    }
+
+    // scores + winner logic same as before
+    finalPlayer1ScoreText.text = $"{p1TotalScore}";
+    finalPlayer2ScoreText.text = $"{p2TotalScore}";
+
+    player1CrownIcon.SetActive(false);
+    player2CrownIcon.SetActive(false);
+    drawMessage.SetActive(false);
+    winnerText.gameObject.SetActive(true);
+
+    if (p1TotalScore > p2TotalScore)
+    {
+        winnerText.text = "Player B Wins!";
+        player1CrownIcon.SetActive(true);
+    }
+    else if (p2TotalScore > p1TotalScore)
+    {
+        winnerText.text = "Player A Wins!";
+        player2CrownIcon.SetActive(true);
+    }
+    else
+    {
+        winnerText.gameObject.SetActive(false);
+        drawMessage.SetActive(true);
+    }
+}
 
     // The OnSaveVideoPressed() method has been completely removed.
 

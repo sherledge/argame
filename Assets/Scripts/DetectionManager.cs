@@ -77,7 +77,7 @@ void Update()
     if (countdownStarted) return;
 
     leftReady = false;
-    rightReady = false;
+    rightReady = true;
 
     IEnumerable<Vector3[]> poses = poseProvider.GetAllDetectedPoseKeypoints();
     _currentPoses.Clear();
@@ -281,12 +281,12 @@ void StartTheGame()
     {
         poseProvider.transform.SetParent(null, true);
     }
-    // --- END OF FIX ---
+    // --- END OF FIX --
 
     detectionPanel.SetActive(false);
     gamePanel.SetActive(true);
 
-    var gamePanelManager = gamePanel.GetComponent<GamePanelManager>();
+    var gamePanelManager = gamePanel.GetComponent<CalorieGameManager>();
     if (gamePanelManager != null)
     {
         Debug.Log("🎮 GamePanelManager: Starting game via StartGame()");

@@ -1,5 +1,5 @@
 fileFormatVersion: 2
-guid: ae56fa8fda0cf314290431757b402b49
+guid: 8c290bb8c5fa87e4a858e17d7e3e75f2
 TextureImporter:
   internalIDToNameTable: []
   externalObjects: {}
@@ -43,7 +43,7 @@ TextureImporter:
   nPOTScale: 0
   lightmap: 0
   compressionQuality: 50
-  spriteMode: 1
+  spriteMode: 2
   spriteExtrude: 1
   spriteMeshType: 1
   alignment: 0
@@ -110,13 +110,13 @@ TextureImporter:
     serializedVersion: 2
     sprites:
     - serializedVersion: 2
-      name: Adobe Express - file (3)_0
+      name: 1764754237945_0
       rect:
         serializedVersion: 2
-        x: 146
-        y: 0
-        width: 678
-        height: 804
+        x: 111
+        y: 256
+        width: 409
+        height: 412
       alignment: 0
       pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -125,8 +125,118 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: 0
       bones: []
-      spriteID: 3bc542d2c6bacb247820c17abb729d25
-      internalID: 413211107
+      spriteID: f69d2f4b7578110478e9f2e35c17fe35
+      internalID: -1154691774
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: 1764754237945_1
+      rect:
+        serializedVersion: 2
+        x: 548
+        y: 258
+        width: 411
+        height: 409
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 011963b26acf10d4b92be6377968c819
+      internalID: 1168566070
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: 1764754237945_2
+      rect:
+        serializedVersion: 2
+        x: 984
+        y: 256
+        width: 411
+        height: 410
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: c1a632de10d1e894595a100c6eb92239
+      internalID: -188873206
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: 1764754237945_3
+      rect:
+        serializedVersion: 2
+        x: 1421
+        y: 256
+        width: 411
+        height: 412
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: f2af1737d1e9f7f459981c953e7823e4
+      internalID: -991481420
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: 1764754237945_4
+      rect:
+        serializedVersion: 2
+        x: 1857
+        y: 258
+        width: 411
+        height: 408
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 67846242722232743be9a44fe72db577
+      internalID: 1070120896
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: 1764754237945_5
+      rect:
+        serializedVersion: 2
+        x: 2296
+        y: 258
+        width: 409
+        height: 408
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 6d79dcd8b2336324986c1e1c453c5d5b
+      internalID: 1143598924
       vertices: []
       indices: 
       edges: []
@@ -135,7 +245,7 @@ TextureImporter:
     customData: 
     physicsShape: []
     bones: []
-    spriteID: 5e97eb03825dee720800000000000000
+    spriteID: 5666946c6a586c14f96798d1518b005d
     internalID: 0
     vertices: []
     indices: 
@@ -145,7 +255,12 @@ TextureImporter:
     spriteCustomMetadata:
       entries: []
     nameFileIdTable:
-      Adobe Express - file (3)_0: 413211107
+      1764754237945_0: -1154691774
+      1764754237945_1: 1168566070
+      1764754237945_2: -188873206
+      1764754237945_3: -991481420
+      1764754237945_4: 1070120896
+      1764754237945_5: 1143598924
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 
