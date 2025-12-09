@@ -410,25 +410,27 @@ MonoBehaviour:
   uiDocument: {fileID: 1634410803}
   games:
   - id: pose
-    sceneName: GameScenePose
     displayName: Pose Game
     thumbnail: {fileID: 21300000, guid: 401056994c7c2754b83f93f3bd87bdc4, type: 3}
+    sceneName: GameScenePose
   - id: memory
-    sceneName: GameSceneMemory
     displayName: Reaction Game
     thumbnail: {fileID: -1154691774, guid: 8c290bb8c5fa87e4a858e17d7e3e75f2, type: 3}
+    sceneName: GameSceneMemory
   - id: calorie
-    sceneName: GameSceneCalorie
     displayName: Memory Game
     thumbnail: {fileID: -2012325331, guid: 5e32033c36addb84295a693316735717, type: 3}
-  - id: reaction
     sceneName: GameSceneCalorie
+  - id: reaction
     displayName: Calorie Game
     thumbnail: {fileID: 961252354, guid: a340a090c2b61244f859601a6bfeb5ec, type: 3}
+    sceneName: GameSceneCalorie
   cardWidth: 1000
   cardHeight: 700
-  settingsSceneName: 
-  creditsSceneName: 
+  cardSpacing: 100
+  centerScale: 1.1
+  sideScale: 0.85
+  snapSmoothTime: 0.15
 --- !u!114 &1634410803
 MonoBehaviour:
   m_ObjectHideFlags: 0

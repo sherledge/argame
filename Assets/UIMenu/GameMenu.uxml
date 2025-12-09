@@ -1,18 +1,21 @@
 <ui:UXML xmlns:ui="UnityEngine.UIElements" xmlns:uie="UnityEditor.UIElements" editor-extension-mode="False">
-    <Style src="project://database/Assets/UIMenu/GameMenu.uss?fileID=7433441132597879392&amp;guid=bef9435658a2f3d42a86eeb022b05aff&amp;type=3#GameMenu" />
-    
+    <Style src="GameMenu.uss" />
+
     <ui:VisualElement class="root">
-        <ui:VisualElement class="background-gradient" />
-        
-        <ui:VisualElement class="top-bar">
-            <ui:Label text="SELECT GAME" class="title-label" />
-            <ui:VisualElement class="top-bar__right">
-                <ui:Button name="SettingsButton" text="SETTINGS" class="menu-btn" />
-                <ui:Button name="CreditsButton" text="CREDITS" class="menu-btn" />
-            </ui:VisualElement>
+        <!-- Background overlay -->
+        <ui:VisualElement class="background-layer" />
+
+        <!-- Header / Logo -->
+        <ui:VisualElement class="header-container">
+            <ui:Label text="ARCADE ARENA" class="logo-text" />
         </ui:VisualElement>
-        
-        <ui:ScrollView name="CarouselView" mode="Horizontal" class="carousel-container" mouse-wheel-scroll-size="100">
+
+        <!-- Horizontal Carousel -->
+        <ui:ScrollView name="CarouselView"
+                       class="carousel-container"
+                       mode="Horizontal"
+                       mouse-wheel-scroll-size="80"
+                       elastic-mode="Persistent">
         </ui:ScrollView>
     </ui:VisualElement>
 </ui:UXML>
