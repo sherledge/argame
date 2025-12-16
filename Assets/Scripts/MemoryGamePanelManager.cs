@@ -16,7 +16,7 @@ using TMPro;
 ///     - Update scores
 /// - After 3 rounds, show final results (via ResultsPanelManager).
 /// </summary>
-public class MemoryGamePanelManager : MonoBehaviour
+public class MemoryGamePanelManager : MonoBehaviour, IGameStarter
 {
     public enum MemoryColor
     {

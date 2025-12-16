@@ -5,7 +5,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 
-public class CalorieGameManager : MonoBehaviour
+public class CalorieGameManager : MonoBehaviour, IGameStarter
 {
     // --- Final Results Storage ---
     private Texture2D player1FinalImage;

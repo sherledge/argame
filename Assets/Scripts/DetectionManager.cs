@@ -285,17 +285,21 @@ void StartTheGame()
 
     detectionPanel.SetActive(false);
     gamePanel.SetActive(true);
+var gameStarter = gamePanel.GetComponent<IGameStarter>();
 
-    var gamePanelManager = gamePanel.GetComponent<CalorieGameManager>();
-    if (gamePanelManager != null)
-    {
-        Debug.Log("🎮 GamePanelManager: Starting game via StartGame()");
-        gamePanelManager.StartGame();
-    }
-    else
-    {
-        Debug.LogError("GamePanelManager not found on gamePanel.");
-    }
+if (gameStarter != null)
+{
+    Debug.Log("🎮 Starting selected game automatically");
+    gameStarter.StartGame();
+}
+else
+{
+    Debug.LogError("No IGameStarter found on gamePanel!");
+}
+    //var gamePanelManager = gamePanel.GetComponent<CalorieGameManager>();
+    //var gamePanelManager = gamePanel.GetComponent<MemoryGamePanelManager>();
+    //var gamePanelManager = gamePanel.GetComponent<ReactionGameManager>();
+
 }
 
 

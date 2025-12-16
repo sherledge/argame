@@ -5,7 +5,7 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
-public class ReactionGameManager : MonoBehaviour
+public class ReactionGameManager : MonoBehaviour, IGameStarter
 {
     [Header("Debug")]
     public GameObject debugCursorPrefab; 

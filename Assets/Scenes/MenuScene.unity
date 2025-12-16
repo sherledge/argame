@@ -424,7 +424,7 @@ MonoBehaviour:
   - id: reaction
     displayName: Calorie Game
     thumbnail: {fileID: 961252354, guid: a340a090c2b61244f859601a6bfeb5ec, type: 3}
-    sceneName: GameSceneCalorie
+    sceneName: GameSceneReaction
   cardWidth: 1000
   cardHeight: 700
   cardSpacing: 100

@@ -7,7 +7,7 @@ using System.Linq;
 
 // Removed using statements for NatSuite and System.IO
 
-public class GamePanelManager : MonoBehaviour
+public class GamePanelManager : MonoBehaviour, IGameStarter
 {
     private Texture2D player1FinalImage;
     private Texture2D player2FinalImage;
