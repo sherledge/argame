@@ -26,15 +26,18 @@ namespace Mediapipe.Unity
       set => _screen.uvRect = value;
     }
 
-    public void Initialize(ImageSource imageSource)
-    {
-      _imageSource = imageSource;
+public void Initialize(ImageSource imageSource)
+{
+    _imageSource = imageSource;
 
-      Resize(_imageSource.textureWidth, _imageSource.textureHeight);
-      Rotate(_imageSource.rotation.Reverse());
-      ResetUvRect(RunningMode.Async);
-      texture = imageSource.GetCurrentTexture();
-    }
+    // ❌ REMOVE THIS
+    // Resize(_imageSource.textureWidth, _imageSource.textureHeight);
+
+    Rotate(_imageSource.rotation.Reverse());
+    ResetUvRect(RunningMode.Async);
+    texture = imageSource.GetCurrentTexture();
+}
+
 
     public void Resize(int width, int height)
     {

@@ -3,23 +3,18 @@ using UnityEngine.UI;
 using TMPro;
 using System.Collections;
 using System.Collections.Generic;
-using System.Linq;
-    
+
 public class DetectionManager : MonoBehaviour
 {
-    [Header("UI Elements")]
-    public RawImage leftOverlay;
-    public RawImage rightOverlay;
-    public TextMeshProUGUI leftPromptText;
-    public TextMeshProUGUI rightPromptText;
+    [Header("New Player UI")]
+    public PlayerLobbyUI leftPlayerUI;
+    public PlayerLobbyUI rightPlayerUI;
     public TextMeshProUGUI countdownText;
-
 
     [Header("Audio")]
     public AudioSource audioSource;
-    public AudioClip leftDetectedClip;
-    public AudioClip rightDetectedClip;
-
+    public AudioClip playersReadyClip; // Changed from individual clips to one "Both Ready" clip
+    
     [Header("Loading Bar Animation")]
     public LoadingBarsAnimator loadingBarsAnimator;
 
@@ -34,20 +29,8 @@ public class DetectionManager : MonoBehaviour
     [Header("Dependencies")]
     public PoseDetectionProvider poseProvider;
 
-    public bool leftReady = false;
-    public bool rightReady = false;
-    public bool countdownStarted = false;
-
-    private bool leftPulseStarted = false;
-    private bool rightPulseStarted = false;
-    private bool leftConfettiPlayed = false;
-    private bool rightConfettiPlayed = false;
-    private bool leftSoundPlayed = false;
-    private bool rightSoundPlayed = false;
-
-    private Coroutine leftPulseCoroutine;
-    private Coroutine rightPulseCoroutine;
-
+    // Logic State
+    private bool countdownStarted = false;
     private bool slideLogoUp = false;
     private bool slideLogoDown = false;
     private Vector2 logoTargetPosition;
@@ -66,58 +49,57 @@ public class DetectionManager : MonoBehaviour
             logoTransition.anchoredPosition = logoOffscreenPosition;
             logoTransition.gameObject.SetActive(false);
         }
-
-        //this.enabled = false;
-        //Debug.Log("DetectionManager: Script disabled at Start.");
-    }
-void Update()
-{
-    AnimateLogo();
-
-    if (countdownStarted) return;
-
-    leftReady = false;
-    rightReady = true;
-
-    IEnumerable<Vector3[]> poses = poseProvider.GetAllDetectedPoseKeypoints();
-    _currentPoses.Clear();
-
-    if (poses != null)
-    {
-        _currentPoses.AddRange(poses);
     }
 
-    if (_currentPoses.Count == 0)
+    void Update()
     {
-        UpdateUI();
-        return;
-    }
-foreach (var pose in _currentPoses)
-    {
-        if (pose != null && pose.Length > 0)
+        AnimateLogo();
+
+        if (countdownStarted) return;
+
+        // 1. Get Poses
+        IEnumerable<Vector3[]> poses = poseProvider.GetAllDetectedPoseKeypoints();
+        _currentPoses.Clear();
+        if (poses != null) _currentPoses.AddRange(poses);
+
+        // 2. Separate Poses Left vs Right
+        Vector3[] leftPose = null;
+        Vector3[] rightPose = null;
+
+        foreach (var pose in _currentPoses)
         {
-            // FIX START: 
-            // x < 0.5f is the LEFT side of the screen (0.0 to 0.5)
-            // x > 0.5f is the RIGHT side of the screen (0.5 to 1.0)
-            
-            if (pose[0].x < 0.5f) 
+            if (pose != null && pose.Length > 0)
             {
-                leftReady = true;
+                // Check Nose (index 0) or Hip (index 23/24) for center position
+                if (pose[0].x < 0.5f) leftPose = pose;
+                else rightPose = pose;
             }
-            else 
-            {
-                rightReady = true;
-            }
-            // FIX END
+        }
+
+        // 3. Update Visuals & Check Readiness
+        // If pose is null, the UI script handles the "Searching" state
+        leftPlayerUI.UpdateSkeleton(leftPose);
+        rightPlayerUI.UpdateSkeleton(rightPose);
+
+        // 4. Check if we can start game
+        if (leftPlayerUI.IsFullyReady && rightPlayerUI.IsFullyReady && !countdownStarted)
+        {
+            StartCoroutine(StartSequence());
         }
     }
 
-    UpdateUI();
-
-    if (leftReady && rightReady && !countdownStarted)
+    IEnumerator StartSequence()
     {
-        Debug.Log("Both players ready. Starting logo transition.");
         countdownStarted = true;
+        Debug.Log("Both players visible and fully detected!");
+
+        if (audioSource != null && playersReadyClip != null)
+        {
+            audioSource.PlayOneShot(playersReadyClip);
+        }
+
+        // Short delay to let them read "Perfect!"
+        yield return new WaitForSeconds(1.0f);
 
         if (logoTransition != null)
         {
@@ -126,115 +108,13 @@ foreach (var pose in _currentPoses)
             slideLogoDown = true;
         }
     }
-}
-
-    void UpdateUI()
-    {
-        // LEFT
-        if (leftReady)
-        {
-            if (!leftPulseStarted)
-            {
-                leftPulseCoroutine = StartCoroutine(PulseOverlay(leftOverlay));
-                leftPulseStarted = true;
-
-                leftPromptText.text = "🟢 Ready!";
-
-                if (!leftSoundPlayed && audioSource != null && leftDetectedClip != null)
-                {
-                    audioSource.PlayOneShot(leftDetectedClip);
-                    leftSoundPlayed = true;
-
-#if UNITY_ANDROID || UNITY_IOS
-                    Handheld.Vibrate(); // Replace if deprecated
-#endif
-                }
-            }
-        }
-        else
-        {
-            if (leftPulseStarted)
-            {
-                if (leftPulseCoroutine != null)
-                {
-                    StopCoroutine(leftPulseCoroutine);
-                    leftPulseCoroutine = null;
-                }
-
-                leftOverlay.color = new Color(0, 0, 0, 0.6f);
-                leftPromptText.text = "🕵️ Searching...";
-                leftPulseStarted = false;
-                leftConfettiPlayed = false;
-                leftSoundPlayed = false;
-            }
-        }
-
-        // RIGHT
-        if (rightReady)
-        {
-            if (!rightPulseStarted)
-            {
-                rightPulseCoroutine = StartCoroutine(PulseOverlay(rightOverlay));
-                rightPulseStarted = true;
-
-                rightPromptText.text = "🟢 Ready!";
-
-                if (!rightSoundPlayed && audioSource != null && rightDetectedClip != null)
-                {
-                    audioSource.PlayOneShot(rightDetectedClip);
-                    rightSoundPlayed = true;
-
-#if UNITY_ANDROID || UNITY_IOS
-                    Handheld.Vibrate();
-#endif
-                }
-            }
-        }
-        else
-        {
-            if (rightPulseStarted)
-            {
-                if (rightPulseCoroutine != null)
-                {
-                    StopCoroutine(rightPulseCoroutine);
-                    rightPulseCoroutine = null;
-                }
-
-                rightOverlay.color = new Color(0, 0, 0, 0.6f);
-                rightPromptText.text = "🕵️ Searching...";
-                rightPulseStarted = false;
-                rightConfettiPlayed = false;
-                rightSoundPlayed = false;
-            }
-        }
-    }
-
-    IEnumerator PulseOverlay(RawImage overlay)
-    {
-        while (true)
-        {
-            for (float a = 0.3f; a <= 0.6f; a += Time.deltaTime)
-            {
-                overlay.color = new Color(0, 1, 0, a);
-                yield return null;
-            }
-            for (float a = 0.6f; a >= 0.3f; a -= Time.deltaTime)
-            {
-                overlay.color = new Color(0, 1, 0, a);
-                yield return null;
-            }
-        }
-    }
 
     void AnimateLogo()
     {
         if (slideLogoDown)
         {
             logoTransition.anchoredPosition = Vector2.MoveTowards(
-                logoTransition.anchoredPosition,
-                logoTargetPosition,
-                logoSlideSpeed * Time.deltaTime
-            );
+                logoTransition.anchoredPosition, logoTargetPosition, logoSlideSpeed * Time.deltaTime);
 
             if (logoTransition.anchoredPosition == logoTargetPosition)
             {
@@ -246,10 +126,7 @@ foreach (var pose in _currentPoses)
         if (slideLogoUp)
         {
             logoTransition.anchoredPosition = Vector2.MoveTowards(
-                logoTransition.anchoredPosition,
-                logoOffscreenPosition,
-                logoSlideSpeed * Time.deltaTime
-            );
+                logoTransition.anchoredPosition, logoOffscreenPosition, logoSlideSpeed * Time.deltaTime);
 
             if (logoTransition.anchoredPosition == logoOffscreenPosition)
             {
@@ -261,46 +138,60 @@ foreach (var pose in _currentPoses)
 
     void OnBarsComplete()
     {
-        Debug.Log("Loading bars complete. Sliding logo up.");
-        leftOverlay.gameObject.SetActive(false);
-        rightOverlay.gameObject.SetActive(false);
-
+        // Hide the lobby UI before sliding up
+        leftPlayerUI.gameObject.SetActive(false);
+        rightPlayerUI.gameObject.SetActive(false);
         slideLogoUp = true;
     }
 
-void StartTheGame()
-{
-    Debug.Log("Logo slide up complete. Starting game panel.");
-    if (logoTransition != null) logoTransition.gameObject.SetActive(false);
-
-    // --- THIS IS THE FINAL FIX ---
-    // To prevent the camera from being turned off when we disable the detectionPanel,
-    // we make the poseProvider a top-level object in the scene by setting its parent to null.
-    // This ensures it stays active during the panel switch.
-    if (poseProvider != null)
+    void StartTheGame()
     {
-        poseProvider.transform.SetParent(null, true);
+        if (logoTransition != null) logoTransition.gameObject.SetActive(false);
+
+        // Prevent camera shutoff
+        if (poseProvider != null)
+        {
+            poseProvider.transform.SetParent(null, true);
+        }
+
+        detectionPanel.SetActive(false);
+        gamePanel.SetActive(true);
+
+        var gameStarter = gamePanel.GetComponent<IGameStarter>();
+        if (gameStarter != null)
+        {
+            gameStarter.StartGame();
+        }
+        else
+        {
+            Debug.LogError("No IGameStarter found on gamePanel!");
+        }
     }
-    // --- END OF FIX --
-
-    detectionPanel.SetActive(false);
-    gamePanel.SetActive(true);
-var gameStarter = gamePanel.GetComponent<IGameStarter>();
-
-if (gameStarter != null)
+    // Add this inside DetectionManager class
+public void ResetDetection()
 {
-    Debug.Log("🎮 Starting selected game automatically");
-    gameStarter.StartGame();
-}
-else
-{
-    Debug.LogError("No IGameStarter found on gamePanel!");
-}
-    //var gamePanelManager = gamePanel.GetComponent<CalorieGameManager>();
-    //var gamePanelManager = gamePanel.GetComponent<MemoryGamePanelManager>();
-    //var gamePanelManager = gamePanel.GetComponent<ReactionGameManager>();
+    countdownStarted = false;
+    slideLogoUp = false;
+    slideLogoDown = false;
 
+    // Reset UI visibility
+    if (leftPlayerUI != null) 
+    {
+        leftPlayerUI.gameObject.SetActive(true);
+        leftPlayerUI.SetSearchingState();
+    }
+    
+    if (rightPlayerUI != null) 
+    {
+        rightPlayerUI.gameObject.SetActive(true);
+        rightPlayerUI.SetSearchingState();
+    }
+
+    if (logoTransition != null)
+    {
+        logoTransition.gameObject.SetActive(false);
+    }
+    
+    Debug.Log("Detection state reset.");
 }
-
-
 }
