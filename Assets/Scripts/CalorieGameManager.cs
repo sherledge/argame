@@ -294,21 +294,37 @@ public class CalorieGameManager : MonoBehaviour, IGameStarter
         player2FinalImage = p2Tex;
     }
 
-    Texture2D CaptureFromRawImage(RawImage rawImage)
-    {
-        if (rawImage == null || rawImage.texture == null) return null;
-        Texture sourceTexture = rawImage.texture;
-        RenderTexture renderTex = RenderTexture.GetTemporary(sourceTexture.width, sourceTexture.height, 0, RenderTextureFormat.Default, RenderTextureReadWrite.sRGB);
-        Graphics.Blit(sourceTexture, renderTex);
-        RenderTexture previous = RenderTexture.active;
-        RenderTexture.active = renderTex;
-        Texture2D capturedTex = new Texture2D(renderTex.width, renderTex.height, TextureFormat.RGBA32, false);
-        capturedTex.ReadPixels(new Rect(0, 0, renderTex.width, renderTex.height), 0, 0);
-        capturedTex.Apply();
-        RenderTexture.active = previous;
-        RenderTexture.ReleaseTemporary(renderTex);
-        return capturedTex;
-    }
+   Texture2D CaptureFromRawImage(RawImage rawImage)
+{
+    if (rawImage == null || rawImage.texture == null)
+        return null;
+
+    Texture src = rawImage.texture;
+
+    // 🔴 Force copy via RenderTexture
+    RenderTexture rt = RenderTexture.GetTemporary(
+        src.width,
+        src.height,
+        0,
+        RenderTextureFormat.ARGB32,
+        RenderTextureReadWrite.Linear
+    );
+
+    Graphics.Blit(src, rt);
+
+    RenderTexture prev = RenderTexture.active;
+    RenderTexture.active = rt;
+
+    Texture2D tex = new Texture2D(rt.width, rt.height, TextureFormat.RGBA32, false);
+    tex.ReadPixels(new Rect(0, 0, rt.width, rt.height), 0, 0);
+    tex.Apply();
+
+    RenderTexture.active = prev;
+    RenderTexture.ReleaseTemporary(rt);
+
+    return tex;
+}
+
 
     #endregion
 }

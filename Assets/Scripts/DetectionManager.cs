@@ -6,6 +6,11 @@ using System.Collections.Generic;
 
 public class DetectionManager : MonoBehaviour
 {
+    private bool devGameStarted = false;
+
+    [Header("Dev / Debug")]
+public bool skipDetection = true;
+
     [Header("New Player UI")]
     public PlayerLobbyUI leftPlayerUI;
     public PlayerLobbyUI rightPlayerUI;
@@ -51,11 +56,22 @@ public class DetectionManager : MonoBehaviour
         }
     }
 
-    void Update()
+void Update()
+{
+        if (skipDetection)
     {
-        AnimateLogo();
+        DevStartGameImmediately();
+        return;
+    }
+/*    AnimateLogo();
 
-        if (countdownStarted) return;
+    if (skipDetection)
+    {
+        ForceStartGame();
+        return;
+    }
+
+    if (countdownStarted) return;
 
         // 1. Get Poses
         IEnumerable<Vector3[]> poses = poseProvider.GetAllDetectedPoseKeypoints();
@@ -85,7 +101,7 @@ public class DetectionManager : MonoBehaviour
         if (leftPlayerUI.IsFullyReady && rightPlayerUI.IsFullyReady && !countdownStarted)
         {
             StartCoroutine(StartSequence());
-        }
+        }*/
     }
 
     IEnumerator StartSequence()
@@ -108,6 +124,24 @@ public class DetectionManager : MonoBehaviour
             slideLogoDown = true;
         }
     }
+void DevStartGameImmediately()
+{
+    if (devGameStarted) return;   // ✅ HARD STOP
+
+    devGameStarted = true;
+
+    Debug.Log("DEV MODE: Skipping detection and starting game");
+
+    detectionPanel.SetActive(false);
+    gamePanel.SetActive(true);
+
+
+
+    var gameStarter = gamePanel.GetComponent<IGameStarter>();
+    if (gameStarter != null)
+        gameStarter.StartGame();
+}
+
 
     void AnimateLogo()
     {
@@ -170,28 +204,16 @@ public class DetectionManager : MonoBehaviour
     // Add this inside DetectionManager class
 public void ResetDetection()
 {
+    devGameStarted = false;   // ✅ IMPORTANT
+
     countdownStarted = false;
     slideLogoUp = false;
     slideLogoDown = false;
 
-    // Reset UI visibility
-    if (leftPlayerUI != null) 
-    {
-        leftPlayerUI.gameObject.SetActive(true);
-        leftPlayerUI.SetSearchingState();
-    }
-    
-    if (rightPlayerUI != null) 
-    {
-        rightPlayerUI.gameObject.SetActive(true);
-        rightPlayerUI.SetSearchingState();
-    }
+    detectionPanel.SetActive(true);
+    gamePanel.SetActive(false);
 
-    if (logoTransition != null)
-    {
-        logoTransition.gameObject.SetActive(false);
-    }
-    
     Debug.Log("Detection state reset.");
 }
+
 }

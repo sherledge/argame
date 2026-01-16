@@ -2087,7 +2087,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: 41.599976, y: -99.399994}
+  m_AnchoredPosition: {x: 41.599854, y: -99.400024}
   m_SizeDelta: {x: 171.505, y: -27}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!1 &448710651
@@ -3342,7 +3342,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: 149.8999, y: -40.815002}
+  m_AnchoredPosition: {x: 149.8999, y: -40.81494}
   m_SizeDelta: {x: -5.215, y: -26.927}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!1 &754985307
@@ -3461,23 +3461,18 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ec236870030507f4eb7cc9ba2a81d5dd, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  leftOverlay: {fileID: 1796545703}
-  rightOverlay: {fileID: 1389423819}
-  leftPromptText: {fileID: 1266579027}
-  rightPromptText: {fileID: 834263312}
+  skipDetection: 1
+  leftPlayerUI: {fileID: 0}
+  rightPlayerUI: {fileID: 0}
   countdownText: {fileID: 1844909204}
   audioSource: {fileID: 1389321300}
-  leftDetectedClip: {fileID: 8300000, guid: 9d0a2b8b34e0f6d45a8de798e588d417, type: 3}
-  rightDetectedClip: {fileID: 8300000, guid: 9d0a2b8b34e0f6d45a8de798e588d417, type: 3}
+  playersReadyClip: {fileID: 0}
   loadingBarsAnimator: {fileID: 884880820}
   detectionPanel: {fileID: 1798864597}
   gamePanel: {fileID: 221036602}
   logoTransition: {fileID: 884129290}
   logoSlideSpeed: 1000
   poseProvider: {fileID: 1989359757}
-  leftReady: 0
-  rightReady: 0
-  countdownStarted: 0
 --- !u!4 &800022335
 Transform:
   m_ObjectHideFlags: 0
@@ -4096,9 +4091,9 @@ MonoBehaviour:
   player2ResultImage: {fileID: 1847749990}
   restartButton: {fileID: 1603575019}
   menuButton: {fileID: 125650154}
+  gamePanel: {fileID: 0}
   resultPanel: {fileID: 870829252}
   detectionPanel: {fileID: 1798864597}
-  introPanel: {fileID: 659008109}
 --- !u!1 &878479947
 GameObject:
   m_ObjectHideFlags: 0
@@ -4616,7 +4611,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 0.5, y: 1}
-  m_AnchoredPosition: {x: 0.00012207031, y: 0}
+  m_AnchoredPosition: {x: 960, y: 0}
   m_SizeDelta: {x: 0, y: 0}
   m_Pivot: {x: 0, y: 0}
 --- !u!114 &1027116328
@@ -5978,7 +5973,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: -322.99982, y: -14.999939}
+  m_AnchoredPosition: {x: -322.99988, y: -15}
   m_SizeDelta: {x: 100, y: 100}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1439433097
@@ -6725,13 +6720,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b0a63a44139929149bd02fb537edf030, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  poseDetectionProvider: {fileID: 1989359756}
-  introContent: {fileID: 2051151597}
-  introPanel: {fileID: 659008109}
-  detectionPanel: {fileID: 1798864597}
-  slideSpeed: 1000
-  detectionManager: {fileID: 800022334}
-  slideUp: 0
 --- !u!4 &1572866834
 Transform:
   m_ObjectHideFlags: 0
@@ -8056,7 +8044,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 0.5, y: 1}
-  m_AnchoredPosition: {x: 960, y: 0}
+  m_AnchoredPosition: {x: 0.000061035, y: 0}
   m_SizeDelta: {x: 0, y: 0}
   m_Pivot: {x: 0, y: 0}
 --- !u!114 &1816212286
@@ -9990,7 +9978,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: -151.4, y: 29.799988}
+  m_AnchoredPosition: {x: -151.3999, y: 29.800049}
   m_SizeDelta: {x: 171.505, y: -27}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &2081003340

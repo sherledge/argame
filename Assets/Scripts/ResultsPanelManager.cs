@@ -21,6 +21,8 @@ public class ResultsPanelManager : MonoBehaviour
     public Button menuButton;
 
     [Header("Panel Dependencies")]
+    public GameObject gamePanel; // ✅ ADD THIS
+
     public GameObject resultPanel;
     public GameObject detectionPanel;
     
@@ -45,6 +47,10 @@ public class ResultsPanelManager : MonoBehaviour
 
     public void ShowResults(int p1TotalScore, int p2TotalScore, Texture2D p1Image, Texture2D p2Image)
     {
+            // 🔴 FORCE game panel OFF
+    if (gamePanel != null)
+        gamePanel.SetActive(false);
+
         resultPanel.SetActive(true);
 
         // --- PLAYER 1 IMAGE ---

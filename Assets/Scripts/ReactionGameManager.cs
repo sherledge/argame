@@ -253,69 +253,62 @@ public class ReactionGameManager : MonoBehaviour, IGameStarter
         return new Vector2(Random.Range(-size.x * 0.4f, size.x * 0.4f), Random.Range(-size.y * 0.4f, size.y * 0.4f));
     }
 
-    private void UpdatePoseAndCheckHits()
+ private void UpdatePoseAndCheckHits()
     {
         var allPoses = poseProvider.GetAllDetectedPoseKeypoints();
         
-        // Safety check
         if (allPoses == null || allPoses.Count == 0) return;
 
-        // Filter and Sort
-        var sorted = allPoses
-            .Where(p => p != null && p.Length > 0) 
-            .OrderBy(p => p[0].x)
-            .ToList();
+        var validPoses = allPoses.Where(p => p != null && p.Length > 0).ToList();
+        if (validPoses.Count == 0) return;
 
-        if (sorted.Count == 0) return;
+        // Since the Runner already flips the image, 
+        // X = 0 is Screen Left, X = 1 is Screen Right.
+        var sorted = validPoses.OrderBy(p => p[0].x).ToList();
 
         Vector3[] poseLeft = null;
         Vector3[] poseRight = null;
 
-        // Logic to determine P1 vs P2
         if (sorted.Count == 1)
         {
-            // If only one person, check which side of screen they are on
-            if (sorted[0][0].x < 0.5f) poseLeft = sorted[0];
-            else poseRight = sorted[0];
+            // The AI already gives us screen coordinates.
+            float screenX = sorted[0][0].x; 
+            
+            if (screenX < 0.5f) poseLeft = sorted[0]; // Person is on screen-left (Red)
+            else poseRight = sorted[0];                // Person is on screen-right (Blue)
         }
         else
         {
-            poseLeft = sorted[0];
-            poseRight = sorted[1];
+            // Person with lowest X is Screen Left
+            poseLeft = sorted[0];  
+            // Person with highest X is Screen Right
+            poseRight = sorted[1]; 
         }
 
-        // --- Process Left Player (P1) ---
+        // --- Process Players ---
         if (poseLeft != null && !playerLeft.finished)
         {
-            // Combine Left Arm/Leg AND Right Arm/Leg indices because "Left Player" uses their whole body
-            List<int> allIndices = new List<int>();
-            allIndices.AddRange(LEFT_LIMBS_INDICES);
-            allIndices.AddRange(RIGHT_LIMBS_INDICES);
-
-            UpdateDebugDots(poseLeft, allIndices.ToArray(), leftPlayerDots);
-            CheckHitsForBodyParts(playerLeft, poseLeft, allIndices.ToArray());
+            UpdateDebugDots(poseLeft, GetBodyIndices(), leftPlayerDots);
+            CheckHitsForBodyParts(playerLeft, poseLeft, GetBodyIndices());
         }
-        else
-        {
-            foreach(var d in leftPlayerDots) d.SetActive(false);
-        }
+        else { foreach(var d in leftPlayerDots) d.SetActive(false); }
 
-        // --- Process Right Player (P2) ---
         if (poseRight != null && !playerRight.finished)
         {
-            List<int> allIndices = new List<int>();
-            allIndices.AddRange(LEFT_LIMBS_INDICES);
-            allIndices.AddRange(RIGHT_LIMBS_INDICES);
-
-            UpdateDebugDots(poseRight, allIndices.ToArray(), rightPlayerDots);
-            CheckHitsForBodyParts(playerRight, poseRight, allIndices.ToArray());
+            UpdateDebugDots(poseRight, GetBodyIndices(), rightPlayerDots);
+            CheckHitsForBodyParts(playerRight, poseRight, GetBodyIndices());
         }
-        else
-        {
-             foreach(var d in rightPlayerDots) d.SetActive(false);
-        }
+        else { foreach(var d in rightPlayerDots) d.SetActive(false); }
     }
 
+    // Helper to keep code clean
+    private int[] GetBodyIndices()
+    {
+        List<int> all = new List<int>();
+        all.AddRange(LEFT_LIMBS_INDICES);
+        all.AddRange(RIGHT_LIMBS_INDICES);
+        return all.ToArray();
+    }
     private void UpdateDebugDots(Vector3[] pose, int[] indices, List<GameObject> dotsPool)
     {
         // Hide all first
@@ -383,32 +376,30 @@ public class ReactionGameManager : MonoBehaviour, IGameStarter
         }
     }
 
-    private Vector2 NormalizedToScreenViaFeed(Vector2 norm)
+private Vector2 NormalizedToScreenViaFeed(Vector2 norm)
     {
+        // REMOVED "1f - norm.x" because PoseLandmarkerRunner already flips it!
+        float screenX = norm.x; 
+        float correctedY = invertY ? (1f - norm.y) : norm.y;
+
         if (cameraFeedRect == null)
         {
-            float x = norm.x * Screen.width;
-            float y = (invertY ? (1f - norm.y) : norm.y) * Screen.height;
-            return new Vector2(x, y);
+            return new Vector2(screenX * UnityEngine.Screen.width, correctedY * UnityEngine.Screen.height);
         }
 
         float feedWidth = cameraFeedRect.rect.width;
         float feedHeight = cameraFeedRect.rect.height;
 
-        float localX = (norm.x - 0.5f) * feedWidth;
-        float localY;
-
-        if (invertY) localY = ((1f - norm.y) - 0.5f) * feedHeight;
-        else localY = (norm.y - 0.5f) * feedHeight;
+        // Map directly to the UI rect
+        float localX = (screenX - 0.5f) * feedWidth;
+        float localY = (correctedY - 0.5f) * feedHeight;
 
         Vector3 localPosInFeed = new Vector3(localX, localY, 0f);
         Vector3 worldPos = cameraFeedRect.TransformPoint(localPosInFeed);
 
         Camera camForUI = (mainCanvas.renderMode == RenderMode.ScreenSpaceOverlay) ? null : uiCamera;
-        Vector2 screenPos = RectTransformUtility.WorldToScreenPoint(camForUI, worldPos);
-        return screenPos;
+        return RectTransformUtility.WorldToScreenPoint(camForUI, worldPos);
     }
-
     private void OnItemTouched(PlayerState player, SpawnedItem item)
     {
         item.hit = true;

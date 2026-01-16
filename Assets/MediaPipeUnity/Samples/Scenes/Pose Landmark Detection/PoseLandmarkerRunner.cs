@@ -67,7 +67,7 @@ if (_poseLandmarkerResultAnnotationController != null)
             _poseLandmarkerResultAnnotationController.InitScreen(imageSource.textureWidth, imageSource.textureHeight);
         }
       var transformationOptions = imageSource.GetTransformationOptions();
-      var flipHorizontally = transformationOptions.flipHorizontally;
+     var flipHorizontally = transformationOptions.flipHorizontally;
       var flipVertically = transformationOptions.flipVertically;
       var imageProcessingOptions = new Tasks.Vision.Core.ImageProcessingOptions(rotationDegrees: 0);
 

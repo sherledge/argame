@@ -3,246 +3,174 @@ using System.Linq;
 using UnityEngine;
 using UnityEngine.UI;
 
-public class MemoryPadTouchManager : MonoBehaviour
+public partial class MemoryPadTouchManager : MonoBehaviour
 {
     [Header("References")]
     public PoseDetectionProvider poseProvider;
     public MemoryGamePanelManager memoryGamePanelManager;
 
     [Header("UI")]
-    public Canvas uiCanvas;                  // your MemoryGameCanvas
-    public RectTransform cameraFeedRect;     // RectTransform of the RawImage that shows the camera
+    public Canvas uiCanvas;
+    public RectTransform cameraFeedRect;
+    public Camera uiCamera;
 
-    [Header("Player 1 Pads (Right side)")]
+    [Header("Player 1 Pads (Visual Right)")]
     public RectTransform p1RedPad;
     public RectTransform p1BluePad;
     public RectTransform p1GreenPad;
     public RectTransform p1YellowPad;
 
-    [Header("Player 2 Pads (Left side)")]
+    [Header("Player 2 Pads (Visual Left)")]
     public RectTransform p2RedPad;
     public RectTransform p2BluePad;
     public RectTransform p2GreenPad;
     public RectTransform p2YellowPad;
 
-    [Header("Camera")]
-    public Camera uiCamera;                  // if Canvas = Screen Space - Camera, assign that camera
-
     [Header("Tuning")]
-    [Tooltip("How far (in pixels) the hand can be from pad center to count as a hit.")]
-    public float hitRadius = 200f;
-
-    [Tooltip("If your Y is flipped, toggle this.")]
+    public float hitRadius = 150f;
     public bool invertY = true;
 
     [Header("Debug")]
-    [Tooltip("Small UI Image prefab to show the hand points.")]
-    public RectTransform debugHandPointPrefab;
-    private readonly List<RectTransform> _debugPoints = new List<RectTransform>();
+    public GameObject debugCursorPrefab;
+    private List<GameObject> p1Dots = new List<GameObject>();
+    private List<GameObject> p2Dots = new List<GameObject>();
 
-    // Pose landmark indices (for MediaPipe Pose):
-    // 15=L.Wrist, 17=L.Pinky, 19=L.Index, 21=L.Thumb
-    // 16=R.Wrist, 18=R.Pinky, 20=R.Index, 22=R.Thumb
-    private readonly int[] LEFT_HAND_INDICES  = { 15, 17, 19, 21 };
-    private readonly int[] RIGHT_HAND_INDICES = { 16, 18, 20, 22 };
+    // Using the full limb set from Reaction Game for better hit detection
+    private readonly int[] BODY_INDICES = { 
+        15, 17, 19, 21, // Left Hand
+        16, 18, 20, 22, // Right Hand
+        13, 14,         // Elbows
+        23, 24          // Hips (Optional, helps if they lean into a bottom pad)
+    };
+
+    private void Start()
+    {
+        // Initialize Debug Dots
+        for (int i = 0; i < BODY_INDICES.Length; i++)
+        {
+            if (debugCursorPrefab == null) break;
+            GameObject d1 = Instantiate(debugCursorPrefab, uiCanvas.transform);
+            d1.GetComponent<Image>().color = new Color(1, 0, 0, 0.5f); // Red for P1
+            d1.SetActive(false);
+            p1Dots.Add(d1);
+
+            GameObject d2 = Instantiate(debugCursorPrefab, uiCanvas.transform);
+            d2.GetComponent<Image>().color = new Color(0, 0, 1, 0.5f); // Blue for P2
+            d2.SetActive(false);
+            p2Dots.Add(d2);
+        }
+    }
 
     private void Update()
     {
-        if (poseProvider == null || memoryGamePanelManager == null || uiCanvas == null)
-            return;
+        var allPoses = poseProvider.GetAllDetectedPoseKeypoints();
+        if (allPoses == null || allPoses.Count == 0) return;
 
-        HideDebugPoints();
+        var validPoses = allPoses.Where(p => p != null && p.Length > 22).ToList();
+        if (validPoses.Count == 0) return;
 
-        List<Vector3[]> poses = null;
-        try
+        // Sort: lowest X is Screen Left (P2), highest X is Screen Right (P1)
+        var sorted = validPoses.OrderBy(p => p[0].x).ToList();
+
+        Vector3[] p2Pose = null; // Right
+        Vector3[] p1Pose = null; // Left
+
+        if (sorted.Count == 1)
         {
-            var tmp = poseProvider.GetAllDetectedPoseKeypoints();
-            if (tmp != null)
-                poses = tmp.ToList();
-        }
-        catch
-        {
-            return;
-        }
-
-        if (poses == null || poses.Count == 0)
-            return;
-
-        // Sort players: left on screen = P2, right = P1 (like your mimic game)
-        var sortedPoses = poses
-            .Where(p => p != null && p.Length > 22)
-            .OrderBy(p => p[0].x)
-            .ToList();
-
-        Vector3[] p2Pose = null;
-        Vector3[] p1Pose = null;
-
-        if (sortedPoses.Count > 1)
-        {
-            p2Pose = sortedPoses[0];
-            p1Pose = sortedPoses[1];
-        }
-        else if (sortedPoses.Count == 1)
-        {
-            if (sortedPoses[0][0].x > 0.5f) p1Pose = sortedPoses[0];
-            else p2Pose = sortedPoses[0];
-        }
-
-        if (p1Pose != null) CheckHandCloud(1, p1Pose);
-        if (p2Pose != null) CheckHandCloud(2, p2Pose);
-    }
-
-    private void CheckHandCloud(int playerIndex, Vector3[] pose)
-    {
-        CheckIndicesAgainstPads(playerIndex, pose, LEFT_HAND_INDICES);
-        CheckIndicesAgainstPads(playerIndex, pose, RIGHT_HAND_INDICES);
-    }
-
-    private void CheckIndicesAgainstPads(int playerIndex, Vector3[] pose, int[] indicesToCheck)
-    {
-        foreach (int index in indicesToCheck)
-        {
-            if (index < 0 || index >= pose.Length)
-                continue;
-
-            Vector2 normPos = new Vector2(pose[index].x, pose[index].y);
-
-            // Convert normalized → screen **via camera feed rect**
-            Vector2 screenPos = NormalizedToScreenViaFeed(normPos);
-
-            ShowDebugPoint(screenPos);
-
-            CheckPointOnPads(playerIndex, screenPos);
-        }
-    }
-
-    /// <summary>
-    /// Converts normalized coordinates (0..1 relative to the camera image)
-    /// into screen-space, using the camera feed RectTransform for proper alignment.
-    /// </summary>
-    private Vector2 NormalizedToScreenViaFeed(Vector2 norm)
-    {
-        if (cameraFeedRect == null)
-        {
-            // fallback: whole screen
-            float x = norm.x * Screen.width;
-            float y = (invertY ? (1f - norm.y) : norm.y) * Screen.height;
-            return new Vector2(x, y);
-        }
-
-        // 1. Get local position inside the camera feed rect (pivot=center)
-        float feedWidth = cameraFeedRect.rect.width;
-        float feedHeight = cameraFeedRect.rect.height;
-
-        // norm.x, norm.y are [0,1] within the original image
-        float localX = (norm.x - 0.5f) * feedWidth;
-        float localY;
-
-        if (invertY)
-        {
-            // if your pose y=0 is top, y=1 bottom, we invert when mapping into UI
-            localY = ((1f - norm.y) - 0.5f) * feedHeight;
+            if (sorted[0][0].x > 0.5f) p2Pose = sorted[0];
+            else p1Pose = sorted[0];
         }
         else
         {
-            localY = (norm.y - 0.5f) * feedHeight;
+            p1Pose = sorted[0];
+            p2Pose = sorted[1];
         }
 
-        Vector3 localPosInFeed = new Vector3(localX, localY, 0f);
+        // Process Hits
+        if (p1Pose != null) ProcessPlayer(1, p1Pose, p1Dots);
+        else HideDots(p1Dots);
 
-        // 2. Convert local point in feed → world
-        Vector3 worldPos = cameraFeedRect.TransformPoint(localPosInFeed);
-
-        // 3. World → screen
-        Camera camForUI = (uiCanvas.renderMode == RenderMode.ScreenSpaceOverlay) ? null : uiCamera;
-        Vector2 screenPos = RectTransformUtility.WorldToScreenPoint(camForUI, worldPos);
-        return screenPos;
+        if (p2Pose != null) ProcessPlayer(2, p2Pose, p2Dots);
+        else HideDots(p2Dots);
     }
 
-      private void CheckPointOnPads(int playerIndex, Vector2 screenPos)
+    private void ProcessPlayer(int playerIndex, Vector3[] pose, List<GameObject> dots)
     {
-        if (uiCanvas == null) return;
+        HideDots(dots);
 
-        if (playerIndex == 1)
+        foreach (int bodyIdx in BODY_INDICES)
         {
-            if (IsPointNearPad(p1RedPad, screenPos))
-                memoryGamePanelManager.OnPlayerColorTouched(1, MemoryGamePanelManager.MemoryColor.Red);
+            if (bodyIdx >= pose.Length) continue;
 
-            if (IsPointNearPad(p1BluePad, screenPos))
-                memoryGamePanelManager.OnPlayerColorTouched(1, MemoryGamePanelManager.MemoryColor.Blue);
+            Vector2 normPos = new Vector2(pose[bodyIdx].x, pose[bodyIdx].y);
+            Vector2 screenPos = NormalizedToScreenViaFeed(normPos);
 
-            if (IsPointNearPad(p1GreenPad, screenPos))
-                memoryGamePanelManager.OnPlayerColorTouched(1, MemoryGamePanelManager.MemoryColor.Green);
+            // Update Debug Dot
+            int listIdx = System.Array.IndexOf(BODY_INDICES, bodyIdx);
+            if (listIdx < dots.Count)
+            {
+                dots[listIdx].SetActive(true);
+                dots[listIdx].transform.position = GetWorldPos(screenPos);
+            }
 
-            if (IsPointNearPad(p1YellowPad, screenPos))
-                memoryGamePanelManager.OnPlayerColorTouched(1, MemoryGamePanelManager.MemoryColor.Yellow);
-        }
-        else if (playerIndex == 2)
-        {
-            if (IsPointNearPad(p2RedPad, screenPos))
-                memoryGamePanelManager.OnPlayerColorTouched(2, MemoryGamePanelManager.MemoryColor.Red);
-
-            if (IsPointNearPad(p2BluePad, screenPos))
-                memoryGamePanelManager.OnPlayerColorTouched(2, MemoryGamePanelManager.MemoryColor.Blue);
-
-            if (IsPointNearPad(p2GreenPad, screenPos))
-                memoryGamePanelManager.OnPlayerColorTouched(2, MemoryGamePanelManager.MemoryColor.Green);
-
-            if (IsPointNearPad(p2YellowPad, screenPos))
-                memoryGamePanelManager.OnPlayerColorTouched(2, MemoryGamePanelManager.MemoryColor.Yellow);
+            // Check Pads
+            CheckPadCollisions(playerIndex, screenPos);
         }
     }
 
-    private bool IsPointNearPad(RectTransform pad, Vector2 screenPos)
+    private void CheckPadCollisions(int playerIndex, Vector2 handScreenPos)
     {
-        if (pad == null) return false;
+        // Get the pads belonging to THIS player
+        RectTransform red = (playerIndex == 1) ? p1RedPad : p2RedPad;
+        RectTransform blue = (playerIndex == 1) ? p1BluePad : p2BluePad;
+        RectTransform green = (playerIndex == 1) ? p1GreenPad : p2GreenPad;
+        RectTransform yellow = (playerIndex == 1) ? p1YellowPad : p2YellowPad;
 
-        Camera camForUI = (uiCanvas.renderMode == RenderMode.ScreenSpaceOverlay) ? null : uiCamera;
-        Vector2 padScreenPos = RectTransformUtility.WorldToScreenPoint(camForUI, pad.position);
-
-        float dist = Vector2.Distance(screenPos, padScreenPos);
-        return dist <= hitRadius;
-    }
-    // ---------- DEBUG DOTS ----------
-
-    private void ShowDebugPoint(Vector2 screenPos)
-    {
-        if (debugHandPointPrefab == null || uiCanvas == null)
-            return;
-
-        RectTransform canvasRect = uiCanvas.transform as RectTransform;
-        if (canvasRect == null)
-            return;
-
-        Vector2 localPos;
-        Camera camForUI = (uiCanvas.renderMode == RenderMode.ScreenSpaceOverlay) ? null : uiCamera;
-        RectTransformUtility.ScreenPointToLocalPointInRectangle(canvasRect, screenPos, camForUI, out localPos);
-
-        RectTransform point = GetNextDebugPoint();
-        point.SetParent(canvasRect, false);
-        point.anchoredPosition = localPos;
-        point.gameObject.SetActive(true);
+        if (IsHit(red, handScreenPos)) memoryGamePanelManager.OnPlayerColorTouched(playerIndex, MemoryGamePanelManager.MemoryColor.Red);
+        if (IsHit(blue, handScreenPos)) memoryGamePanelManager.OnPlayerColorTouched(playerIndex, MemoryGamePanelManager.MemoryColor.Blue);
+        if (IsHit(green, handScreenPos)) memoryGamePanelManager.OnPlayerColorTouched(playerIndex, MemoryGamePanelManager.MemoryColor.Green);
+        if (IsHit(yellow, handScreenPos)) memoryGamePanelManager.OnPlayerColorTouched(playerIndex, MemoryGamePanelManager.MemoryColor.Yellow);
     }
 
-    private RectTransform GetNextDebugPoint()
+    private bool IsHit(RectTransform pad, Vector2 handScreenPos)
     {
-        foreach (var p in _debugPoints)
-        {
-            if (p != null && !p.gameObject.activeSelf)
-                return p;
-        }
-
-        var newPoint = Instantiate(debugHandPointPrefab);
-        _debugPoints.Add(newPoint);
-        return newPoint;
+        if (pad == null || !pad.gameObject.activeInHierarchy) return false;
+        
+        Vector2 padScreenPos = GetScreenPos(pad.position);
+        return Vector2.Distance(handScreenPos, padScreenPos) <= hitRadius;
     }
 
-    private void HideDebugPoints()
+    private Vector2 NormalizedToScreenViaFeed(Vector2 norm)
     {
-        foreach (var p in _debugPoints)
-        {
-            if (p != null)
-                p.gameObject.SetActive(false);
-        }
+        // Simple direct mapping (matching fixed ReactionGame logic)
+        float screenX = norm.x; 
+        float correctedY = invertY ? (1f - norm.y) : norm.y;
+
+        if (cameraFeedRect == null)
+            return new Vector2(screenX * Screen.width, correctedY * Screen.height);
+
+        float localX = (screenX - 0.5f) * cameraFeedRect.rect.width;
+        float localY = (correctedY - 0.5f) * cameraFeedRect.rect.height;
+
+        Vector3 worldPos = cameraFeedRect.TransformPoint(new Vector3(localX, localY, 0));
+        return GetScreenPos(worldPos);
+    }
+
+    private Vector2 GetScreenPos(Vector3 worldPos)
+    {
+        Camera cam = (uiCanvas.renderMode == RenderMode.ScreenSpaceOverlay) ? null : uiCamera;
+        return RectTransformUtility.WorldToScreenPoint(cam, worldPos);
+    }
+
+    private Vector3 GetWorldPos(Vector2 screenPos)
+    {
+        Camera cam = (uiCanvas.renderMode == RenderMode.ScreenSpaceOverlay) ? null : uiCamera;
+        RectTransformUtility.ScreenPointToWorldPointInRectangle(uiCanvas.transform as RectTransform, screenPos, cam, out Vector3 worldPos);
+        return worldPos;
+    }
+
+    private void HideDots(List<GameObject> dots)
+    {
+        foreach (var d in dots) d.SetActive(false);
     }
 }
