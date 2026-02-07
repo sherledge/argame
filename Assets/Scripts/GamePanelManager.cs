@@ -5,10 +5,17 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 
-// Removed using statements for NatSuite and System.IO
-
-public class GamePanelManager : MonoBehaviour, IGameStarter
+public class GamePanelManager : MonoBehaviour, IGameStarter, ITutorialListener
 {
+    [Header("Audios")]
+    public AudioSource sfxSource;
+    public AudioClip countdownBeepSfx;
+    public AudioClip cameraShutterSfx;
+
+
+    [Header("Tutorial")]
+    public GameObject tutorialPanel;
+
     private Texture2D player1FinalImage;
     private Texture2D player2FinalImage;
 
@@ -37,11 +44,8 @@ public class GamePanelManager : MonoBehaviour, IGameStarter
 
     [Header("Panel References")]
     public GameObject gamePanel;
-    
-    // --- All NatCorder Variables have been removed ---
 
-    // --- State Variables ---
-// This should be a direct reference to the GameRecorder script.
+
     private int currentRound = 0;
     private int player1Score = 0;
     private int player2Score = 0;
@@ -56,38 +60,35 @@ public class GamePanelManager : MonoBehaviour, IGameStarter
     public void StartGame()
     {
         ResetGame();
+
         referenceImageDisplay.gameObject.SetActive(false);
         player1ImageDisplay.gameObject.SetActive(false);
         player2ImageDisplay.gameObject.SetActive(false);
         timerText.gameObject.SetActive(false);
-        
-        // The call to StartRecording() has been removed.
-        StartCoroutine(WaitForPoseFeed());
+
+        // 🔹 Show tutorial FIRST
+        if (tutorialPanel != null)
+            tutorialPanel.SetActive(true);
+        else
+            OnTutorialFinished(); // fallback if tutorial not assigned
     }
 
-    // The entire StartRecording() method has been deleted.
+    void TransitionToResultsPanel()
+    {
 
-    // This method is no longer async and does not handle video.
-// In GamePanelManager.cs
+        gamePanel.SetActive(false);
 
-// In GamePanelManager.cs
-// --- AFTER ---
-void TransitionToResultsPanel()
-{
-    // 1. Simply tell the recorder to stop.
-    // It will automatically handle saving and saving to the gallery via its events.
-
-    
-    // 2. The rest of your code remains the same.
-    gamePanel.SetActive(false);
-
-    resultsPanelManager.ShowResults(
-        player1Score, 
-        player2Score, 
-        player1FinalImage, 
-        player2FinalImage
-    );
-}
+        resultsPanelManager.ShowResults(
+            player1Score,
+            player2Score,
+            player1FinalImage,
+            player2FinalImage
+        );
+    }
+    bool IsSfxEnabled()
+    {
+        return PlayerPrefs.GetInt("SFX_ENABLED", 1) == 1;
+    }
 
     public void ResetGame()
     {
@@ -99,7 +100,6 @@ void TransitionToResultsPanel()
         if (player1FinalImage != null) { Destroy(player1FinalImage); player1FinalImage = null; }
         if (player2FinalImage != null) { Destroy(player2FinalImage); player2FinalImage = null; }
     }
-
 
 
     IEnumerator WaitForPoseFeed()
@@ -133,13 +133,20 @@ void TransitionToResultsPanel()
             TransitionToResultsPanel();
         }
         Debug.Log("[GamePanelManager] Pose feed ready, starting round...");
-StartRound();
+        StartRound();
 
     }
-public void StartRound()
-{
-    StartCoroutine(PlayRound());
-}
+    public void StartRound()
+    {
+        StartCoroutine(PlayRound());
+    }
+    public void OnTutorialFinished()
+    {
+        Debug.Log("[GamePanelManager] Tutorial finished, starting game");
+
+        gamePanel.SetActive(true);   // ensure visible
+        StartCoroutine(WaitForPoseFeed());
+    }
 
 
     IEnumerator PlayRound()
@@ -157,24 +164,38 @@ public void StartRound()
             referenceImageDisplay.gameObject.SetActive(false);
             referenceFrameImage.gameObject.SetActive(false);
             timerText.gameObject.SetActive(true);
-            for (int timer = 3; timer > 0; timer--)
-            {
-                timerText.text = timer.ToString();
-                yield return new WaitForSeconds(1f);
-            }
+            
+                    // 🔊 Countdown beep
+                    if (IsSfxEnabled() && sfxSource != null && countdownBeepSfx != null)
+                    {
+                        sfxSource.PlayOneShot(countdownBeepSfx);
+                    }
+
+                for (int timer = 3; timer > 0; timer--)
+                {
+                    timerText.text = timer.ToString();
+
+                    yield return new WaitForSeconds(1f);
+                }
+
             timerText.text = "Pose!";
             yield return new WaitForSeconds(1f);
             timerText.gameObject.SetActive(false);
             List<Vector3[]> currentDetectedPoses = poseProvider.GetAllDetectedPoseKeypoints()?.ToList();
             Texture2D capturedFullImage = CaptureFromRawImage(liveCameraFeedRawImage);
+            // 📸 Camera shutter sound
+            if (IsSfxEnabled() && sfxSource != null && cameraShutterSfx != null)
+            {
+                sfxSource.PlayOneShot(cameraShutterSfx);
+            }
+
             if (capturedFullImage != null)
             {
                 int width = capturedFullImage.width;
                 int height = capturedFullImage.height;
                 int halfWidth = width / 2;
 
-// --- FIX START: Swapping the pixel read logic ---
-                
+
                 // Player 1 is physically on the LEFT, but in a mirrored webcam, 
                 // they appear on the RIGHT side of the texture.
                 // So Player 1 needs to grab from halfWidth to width.
@@ -189,7 +210,6 @@ public void StartRound()
                 player2CroppedTex.SetPixels(capturedFullImage.GetPixels(0, 0, halfWidth, height));
                 player2CroppedTex.Apply();
 
-                // --- FIX END ---
 
                 if (player1FinalImage != null) Destroy(player1FinalImage);
                 if (player2FinalImage != null) Destroy(player2FinalImage);
@@ -242,16 +262,16 @@ public void StartRound()
             if (player2ImageDisplay.texture != null) { Destroy(player2ImageDisplay.texture); player2ImageDisplay.texture = null; }
             player1ScoreText.text = "";
             player2ScoreText.text = "";
-            
+
             currentRound++;
         }
 
         yield return new WaitForEndOfFrame();
         finalThumbnail = CaptureFromRawImage(liveCameraFeedRawImage);
-        
+
         TransitionToResultsPanel();
     }
-    
+
     #region Helper Methods
     void AnimateReferenceImage()
     {
@@ -276,22 +296,25 @@ public void StartRound()
         RenderTexture.ReleaseTemporary(renderTex);
         return capturedTex;
     }
-       Vector3[] LoadTargetPose(TextAsset jsonAsset)
+    Vector3[] LoadTargetPose(TextAsset jsonAsset)
     {
         if (jsonAsset == null || string.IsNullOrEmpty(jsonAsset.text)) return null;
-        try {
+        try
+        {
             PoseJsonData poseData = JsonUtility.FromJson<PoseJsonData>(jsonAsset.text);
             if (poseData == null || poseData.normalizedLandmarks == null) return null;
             return poseData.normalizedLandmarks.Select(k => new Vector3(k.x, k.y, k.z)).ToArray();
-        } catch { return null; }
+        }
+        catch { return null; }
     }
-    
-    
+
+
     float ComparePose(Vector3[] poseA, Vector3[] poseB)
     {
         if (poseA == null || poseB == null || poseA.Length != poseB.Length || poseA.Length == 0) return 0f;
         float totalDiff = 0f;
-        for (int i = 0; i < poseA.Length; i++) {
+        for (int i = 0; i < poseA.Length; i++)
+        {
             totalDiff += Vector3.Distance(poseA[i], poseB[i]);
         }
         float avgDiff = totalDiff / poseA.Length;

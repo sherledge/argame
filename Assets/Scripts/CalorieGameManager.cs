@@ -5,11 +5,16 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 
-public class CalorieGameManager : MonoBehaviour, IGameStarter
+public class CalorieGameManager : MonoBehaviour, IGameStarter, ITutorialListener
 {
-    // --- Final Results Storage ---
+[Header("Audio")]
+public AudioSource sfxSource;
+public AudioClip jumpSfx;
     private Texture2D player1FinalImage;
     private Texture2D player2FinalImage;
+    [Header("Tutorial")]
+public GameObject tutorialPanel;
+
 
     [Header("Animation References")]
     public Animator player1Panda; // Drag Player 1's Panda GameObject (with Animator) here
@@ -18,8 +23,6 @@ public class CalorieGameManager : MonoBehaviour, IGameStarter
     [Header("UI Elements")]
     public TMP_Text timerText;
     public RawImage liveCameraFeedRawImage;
-    public RawImage player1ImageDisplay;
-    public RawImage player2ImageDisplay;
     public TMP_Text player1ScoreText; // Displays Calories for P1
     public TMP_Text player2ScoreText; // Displays Calories for P2
 
@@ -61,12 +64,18 @@ public class CalorieGameManager : MonoBehaviour, IGameStarter
     public void StartGame()
     {
         ResetGame();
-        player1ImageDisplay.gameObject.SetActive(false);
-        player2ImageDisplay.gameObject.SetActive(false);
         timerText.gameObject.SetActive(false);
-        
-        StartCoroutine(WaitForPoseFeed());
+            // Show tutorial first
+    tutorialPanel.SetActive(true);
     }
+public void OnTutorialFinished()
+{
+    StartCoroutine(WaitForPoseFeed());
+}
+bool IsSfxEnabled()
+{
+    return PlayerPrefs.GetInt("SFX_ENABLED", 1) == 1;
+}
 
     public void ResetGame()
     {
@@ -146,8 +155,6 @@ public class CalorieGameManager : MonoBehaviour, IGameStarter
 
     public void StartGameplay()
     {
-        player1ImageDisplay.gameObject.SetActive(true);
-        player2ImageDisplay.gameObject.SetActive(true);
         timerText.gameObject.SetActive(true);
         
         // Setup initial texture display just to ensure they are visible
@@ -251,23 +258,34 @@ public class CalorieGameManager : MonoBehaviour, IGameStarter
         else p2LastHipY = currentY;
     }
 
-    void RegisterJump(int playerID)
+void RegisterJump(int playerID)
+{
+    // 🔊 Play jump SFX (once per valid jump)
+    if (IsSfxEnabled() && sfxSource != null && jumpSfx != null)
     {
-        if (playerID == 1)
-        {
-            player1Calories += caloriesPerJump;
-            p1JumpTimer = jumpCooldown;
-            if (player1Panda != null) player1Panda.SetTrigger("Jump");
-        }
-        else
-        {
-            player2Calories += caloriesPerJump;
-            p2JumpTimer = jumpCooldown;
-            if (player2Panda != null) player2Panda.SetTrigger("Jump");
-        }
-        
-        UpdateScoreUI();
+        sfxSource.PlayOneShot(jumpSfx);
     }
+
+    if (playerID == 1)
+    {
+        player1Calories += caloriesPerJump;
+        p1JumpTimer = jumpCooldown;
+
+        if (player1Panda != null)
+            player1Panda.SetTrigger("Jump");
+    }
+    else
+    {
+        player2Calories += caloriesPerJump;
+        p2JumpTimer = jumpCooldown;
+
+        if (player2Panda != null)
+            player2Panda.SetTrigger("Jump");
+    }
+
+    UpdateScoreUI();
+}
+
 
     #region Helper Methods
 

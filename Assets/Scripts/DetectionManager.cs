@@ -6,6 +6,10 @@ using System.Collections.Generic;
 
 public class DetectionManager : MonoBehaviour
 {
+    [Header("Pre-Detection Loading Overlay")]
+public GameObject loadingOverlay;          // full-screen animation panel
+public float minimumLoadingTime = 1.5f;    // safety delay (seconds)
+
     private bool devGameStarted = false;
 
     [Header("Dev / Debug")]
@@ -42,67 +46,114 @@ public bool skipDetection = true;
     private Vector2 logoOffscreenPosition;
 
     private List<Vector3[]> _currentPoses = new List<Vector3[]>();
+private bool detectionEnabled = false;
 
-    void Start()
+void Start()
+{
+    countdownText.gameObject.SetActive(false);
+    gamePanel.SetActive(false);
+
+    detectionEnabled = false;        // BLOCK detection
+    detectionPanel.SetActive(false); // Hide detection
+
+    if (loadingOverlay != null)
+        loadingOverlay.SetActive(true); // SHOW loading animation
+
+    if (logoTransition != null)
     {
-        countdownText.gameObject.SetActive(false);
-        gamePanel.SetActive(false);
-
-        if (logoTransition != null)
-        {
-            logoOffscreenPosition = new Vector2(0, Screen.height);
-            logoTransition.anchoredPosition = logoOffscreenPosition;
-            logoTransition.gameObject.SetActive(false);
-        }
+        logoOffscreenPosition = new Vector2(0, Screen.height);
+        logoTransition.anchoredPosition = logoOffscreenPosition;
+        logoTransition.gameObject.SetActive(false);
     }
+}
+
+IEnumerator LoadingSequence()
+{
+    // Show loading overlay
+    if (loadingOverlay != null)
+        loadingOverlay.SetActive(true);
+
+    // Wait minimum time (prevents instant flash)
+    yield return new WaitForSeconds(minimumLoadingTime);
+
+    // OPTIONAL: Wait until camera feed exists
+    while (poseProvider == null ||
+           poseProvider.GetAllDetectedPoseKeypoints() == null)
+    {
+        yield return null;
+    }
+
+    // Hide loading overlay
+    if (loadingOverlay != null)
+        loadingOverlay.SetActive(false);
+
+    // Enable detection
+    detectionEnabled = true;
+
+    // Show detection UI
+    if (detectionPanel != null)
+        detectionPanel.SetActive(true);
+
+    Debug.Log("Loading complete → Detection enabled");
+}
+
 
 void Update()
 {
-        if (skipDetection)
-    {
-        DevStartGameImmediately();
+    if (!detectionEnabled)
         return;
-    }
-/*    AnimateLogo();
 
     if (skipDetection)
     {
-        ForceStartGame();
+        DevStartGameImmediately();
         return;
     }
 
     if (countdownStarted) return;
 
-        // 1. Get Poses
-        IEnumerable<Vector3[]> poses = poseProvider.GetAllDetectedPoseKeypoints();
-        _currentPoses.Clear();
-        if (poses != null) _currentPoses.AddRange(poses);
 
-        // 2. Separate Poses Left vs Right
-        Vector3[] leftPose = null;
-        Vector3[] rightPose = null;
 
-        foreach (var pose in _currentPoses)
+    // 1. Get poses
+    IEnumerable<Vector3[]> poses = poseProvider.GetAllDetectedPoseKeypoints();
+    _currentPoses.Clear();
+    if (poses != null) _currentPoses.AddRange(poses);
+
+    // 2. Split left / right
+    Vector3[] leftPose = null;
+    Vector3[] rightPose = null;
+
+    foreach (var pose in _currentPoses)
+    {
+        if (pose != null && pose.Length > 0)
         {
-            if (pose != null && pose.Length > 0)
-            {
-                // Check Nose (index 0) or Hip (index 23/24) for center position
-                if (pose[0].x < 0.5f) leftPose = pose;
-                else rightPose = pose;
-            }
+            if (pose[0].x < 0.5f) leftPose = pose;
+            else rightPose = pose;
         }
-
-        // 3. Update Visuals & Check Readiness
-        // If pose is null, the UI script handles the "Searching" state
-        leftPlayerUI.UpdateSkeleton(leftPose);
-        rightPlayerUI.UpdateSkeleton(rightPose);
-
-        // 4. Check if we can start game
-        if (leftPlayerUI.IsFullyReady && rightPlayerUI.IsFullyReady && !countdownStarted)
-        {
-            StartCoroutine(StartSequence());
-        }*/
     }
+
+    // 3. Update UI
+    leftPlayerUI.UpdateSkeleton(leftPose);
+    rightPlayerUI.UpdateSkeleton(rightPose);
+
+    // 4. Start game immediately when ready
+    if (leftPlayerUI.IsFullyReady && rightPlayerUI.IsFullyReady)
+    {
+        StartTheGame();
+        countdownStarted = true; // hard stop
+    }
+}
+public void OnDetectionLoadingFinished()
+{
+    Debug.LogError("🔥🔥🔥 ANIMATION CALLBACK FIRED 🔥🔥🔥");
+
+    if (loadingOverlay != null)
+        loadingOverlay.SetActive(false);
+
+    detectionEnabled = true;
+    detectionPanel.SetActive(true);
+}
+
+
 
     IEnumerator StartSequence()
     {
@@ -178,29 +229,18 @@ void DevStartGameImmediately()
         slideLogoUp = true;
     }
 
-    void StartTheGame()
-    {
-        if (logoTransition != null) logoTransition.gameObject.SetActive(false);
+void StartTheGame()
+{
+    detectionPanel.SetActive(false);
+    gamePanel.SetActive(true);
 
-        // Prevent camera shutoff
-        if (poseProvider != null)
-        {
-            poseProvider.transform.SetParent(null, true);
-        }
+    var gameStarter = gamePanel.GetComponent<IGameStarter>();
+    if (gameStarter != null)
+        gameStarter.StartGame();
+    else
+        Debug.LogError("No IGameStarter found on gamePanel!");
+}
 
-        detectionPanel.SetActive(false);
-        gamePanel.SetActive(true);
-
-        var gameStarter = gamePanel.GetComponent<IGameStarter>();
-        if (gameStarter != null)
-        {
-            gameStarter.StartGame();
-        }
-        else
-        {
-            Debug.LogError("No IGameStarter found on gamePanel!");
-        }
-    }
     // Add this inside DetectionManager class
 public void ResetDetection()
 {

@@ -5,20 +5,24 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
-public class ReactionGameManager : MonoBehaviour, IGameStarter
+public class ReactionGameManager : MonoBehaviour, IGameStarter, ITutorialListener
 {
-    [Header("Debug")]
-    public GameObject debugCursorPrefab; 
-    
-    // Lists to hold the visual debug dots
-    private List<GameObject> leftPlayerDots = new List<GameObject>();
-    private List<GameObject> rightPlayerDots = new List<GameObject>();
+    [Header("Audio")]
+public AudioSource sfxSource;
+public AudioClip correctTouchSfx;
+public AudioClip wrongTouchSfx;
+
+    [Header("Tutorial")]
+    public GameObject tutorialPanel;
 
     [Header("Dependencies")]
     public PoseDetectionProvider poseProvider;
     public Canvas mainCanvas;
     public Camera uiCamera;  
     public ResultsPanelManager resultsPanelManager; 
+
+    [Header("Camera Feed")]
+    public RawImage cameraFeedRawImage; // <--- NEW: ASSIGN THIS IN INSPECTOR
 
     [Header("Play Areas")]
     public RectTransform leftPlayArea;    
@@ -44,7 +48,11 @@ public class ReactionGameManager : MonoBehaviour, IGameStarter
     [Header("Game Settings")]
     public float roundDuration = 10f;
     [Tooltip("Detection distance in pixels.")]
-    public float hitRadius = 150f; 
+    public float hitRadius = 200f; 
+
+    // --- Image Capture Variables ---
+    private Texture2D player1FinalImage;
+    private Texture2D player2FinalImage;
 
     // --- Internal Structures ---
     private class SpawnedItem
@@ -82,58 +90,44 @@ public class ReactionGameManager : MonoBehaviour, IGameStarter
 
     private bool[] roundHasX = new bool[3] { false, true, true };
 
-    // --- FULL BODY PARTS DEFINITION ---
-    // We include shoulders, elbows, wrists, hands, hips, knees, ankles, feet
-    
-    // Left side of the BODY (BlazePose IDs: 11,13,15,17,19,21,23,25,27,29,31)
-    private readonly int[] LEFT_LIMBS_INDICES = { 
-        15, 17, 19, 21, // Left Hand (Wrist, Pinky, Index, Thumb)
-        27, 29, 31,     // Left Foot (Ankle, Heel, Toe)
-        13, 23, 25      // Left Elbow, Hip, Knee (Optional, good for body collision)
-    };
-
-    // Right side of the BODY (BlazePose IDs: 12,14,16,18,20,22,24,26,28,30,32)
-    private readonly int[] RIGHT_LIMBS_INDICES = { 
+    private readonly int[] BODY_INDICES = { 
+        15, 17, 19, 21, // Left Hand
         16, 18, 20, 22, // Right Hand
+        27, 29, 31,     // Left Foot
         28, 30, 32,     // Right Foot
-        14, 24, 26      // Right Elbow, Hip, Knee
+        13, 14,         // Elbows
+        25, 26          // Knees
     };
 
-    private void Start()
-    {
-        if (debugCursorPrefab == null || mainCanvas == null) return;
-
-        // Create a pool of debug dots for Left Player (P1)
-        for (int i = 0; i < LEFT_LIMBS_INDICES.Length + RIGHT_LIMBS_INDICES.Length; i++)
-        {
-            GameObject dot = Instantiate(debugCursorPrefab, mainCanvas.transform);
-            dot.name = $"P1_Dot_{i}";
-            var img = dot.GetComponent<Image>();
-            if (img) img.color = new Color(1, 0, 0, 0.5f); // Red for Left Player
-            dot.SetActive(false);
-            leftPlayerDots.Add(dot);
-        }
-
-        // Create a pool of debug dots for Right Player (P2)
-        for (int i = 0; i < LEFT_LIMBS_INDICES.Length + RIGHT_LIMBS_INDICES.Length; i++)
-        {
-            GameObject dot = Instantiate(debugCursorPrefab, mainCanvas.transform);
-            dot.name = $"P2_Dot_{i}";
-            var img = dot.GetComponent<Image>();
-            if (img) img.color = new Color(0, 0, 1, 0.5f); // Blue for Right Player
-            dot.SetActive(false);
-            rightPlayerDots.Add(dot);
-        }
-    }
+    private void Start() { }
 
     public void StartGame()
     {
         StopAllCoroutines();
+
         player1TotalScore = 0;
         player2TotalScore = 0;
         currentRoundIndex = 0;
         player1ScoreText.text = "0";
         player2ScoreText.text = "0";
+
+        // Clean up old images
+        if (player1FinalImage != null) { Destroy(player1FinalImage); player1FinalImage = null; }
+        if (player2FinalImage != null) { Destroy(player2FinalImage); player2FinalImage = null; }
+
+        if (tutorialPanel != null)
+            tutorialPanel.SetActive(true);
+        else
+            OnTutorialFinished();
+    }
+bool IsSfxEnabled()
+{
+    return PlayerPrefs.GetInt("SFX_ENABLED", 1) == 1;
+}
+
+    public void OnTutorialFinished()
+    {
+        Debug.Log("[ReactionGameManager] Tutorial finished, starting game");
         StartCoroutine(GameLoop());
     }
 
@@ -165,13 +159,18 @@ public class ReactionGameManager : MonoBehaviour, IGameStarter
             yield return new WaitForSeconds(1f);
         }
 
-        // Hide all dots at end
-        foreach(var d in leftPlayerDots) d.SetActive(false);
-        foreach(var d in rightPlayerDots) d.SetActive(false);
-
+        // --- CHANGED: Capture and Pass Images ---
         if (resultsPanelManager != null)
-            resultsPanelManager.ShowResults(player1TotalScore, player2TotalScore, null, null);
+        {
+            // 1. Capture Logic
+            Texture2D fullSnap = CaptureFromRawImage(cameraFeedRawImage);
+            SplitAndAssignFinalImages(fullSnap);
+
+            // 2. Pass Logic
+            resultsPanelManager.ShowResults(player2TotalScore, player1TotalScore, player1FinalImage, player2FinalImage);
+        }
     }
+
 
     private void SetupRound(int roundIndex)
     {
@@ -206,40 +205,32 @@ public class ReactionGameManager : MonoBehaviour, IGameStarter
         }
     }
 
-  private void SpawnSingleItem(PlayerState player, Image img, RectTransform area, int val, bool isX)
-{
-    if (img == null) return;
-
-    RectTransform rt = img.rectTransform;
-    
-    // ----------- CHANGE HERE -----------
-    // COMMENT OUT THIS LINE. 
-    // This line was forcing the slot to move to a random spot.
-    // By removing it, the item stays exactly where you placed the Slot in the Unity Editor.
-    
-    // rt.anchoredPosition = GetRandomPointInside(area); 
-    // -----------------------------------
-
-    if (isX && xSprite != null)
+    private void SpawnSingleItem(PlayerState player, Image img, RectTransform area, int val, bool isX)
     {
-        img.sprite = xSprite;
+        if (img == null) return;
+
+        RectTransform rt = img.rectTransform;
+
+        if (isX && xSprite != null)
+        {
+            img.sprite = xSprite;
+        }
+        else if (!isX && numberSprites != null && val >= 1 && val <= numberSprites.Count)
+        {
+            img.sprite = numberSprites[val - 1];
+        }
+
+        img.gameObject.SetActive(true);
+
+        player.items.Add(new SpawnedItem
+        {
+            value = val,
+            isX = isX,
+            rect = rt,
+            go = img.gameObject,
+            hit = false
+        });
     }
-    else if (!isX && numberSprites != null && val >= 1 && val <= numberSprites.Count)
-    {
-        img.sprite = numberSprites[val - 1];
-    }
-
-    img.gameObject.SetActive(true);
-
-    player.items.Add(new SpawnedItem
-    {
-        value = val,
-        isX = isX,
-        rect = rt,
-        go = img.gameObject,
-        hit = false
-    });
-}
 
     private void ClearPlayerItems(PlayerState player)
     {
@@ -247,23 +238,16 @@ public class ReactionGameManager : MonoBehaviour, IGameStarter
         player.items.Clear();
     }
 
-    private Vector2 GetRandomPointInside(RectTransform area)
-    {
-        Vector2 size = area.rect.size;
-        return new Vector2(Random.Range(-size.x * 0.4f, size.x * 0.4f), Random.Range(-size.y * 0.4f, size.y * 0.4f));
-    }
 
- private void UpdatePoseAndCheckHits()
+    // --- HIT DETECTION LOGIC ---
+    private void UpdatePoseAndCheckHits()
     {
         var allPoses = poseProvider.GetAllDetectedPoseKeypoints();
-        
         if (allPoses == null || allPoses.Count == 0) return;
 
-        var validPoses = allPoses.Where(p => p != null && p.Length > 0).ToList();
+        var validPoses = allPoses.Where(p => p != null && p.Length > 22).ToList();
         if (validPoses.Count == 0) return;
 
-        // Since the Runner already flips the image, 
-        // X = 0 is Screen Left, X = 1 is Screen Right.
         var sorted = validPoses.OrderBy(p => p[0].x).ToList();
 
         Vector3[] poseLeft = null;
@@ -271,158 +255,118 @@ public class ReactionGameManager : MonoBehaviour, IGameStarter
 
         if (sorted.Count == 1)
         {
-            // The AI already gives us screen coordinates.
-            float screenX = sorted[0][0].x; 
-            
-            if (screenX < 0.5f) poseLeft = sorted[0]; // Person is on screen-left (Red)
-            else poseRight = sorted[0];                // Person is on screen-right (Blue)
+            if (sorted[0][0].x < 0.5f) poseLeft = sorted[0]; 
+            else poseRight = sorted[0];
         }
         else
         {
-            // Person with lowest X is Screen Left
-            poseLeft = sorted[0];  
-            // Person with highest X is Screen Right
-            poseRight = sorted[1]; 
+            poseLeft = sorted[0];
+            poseRight = sorted[1];
         }
 
-        // --- Process Players ---
-        if (poseLeft != null && !playerLeft.finished)
-        {
-            UpdateDebugDots(poseLeft, GetBodyIndices(), leftPlayerDots);
-            CheckHitsForBodyParts(playerLeft, poseLeft, GetBodyIndices());
-        }
-        else { foreach(var d in leftPlayerDots) d.SetActive(false); }
-
-        if (poseRight != null && !playerRight.finished)
-        {
-            UpdateDebugDots(poseRight, GetBodyIndices(), rightPlayerDots);
-            CheckHitsForBodyParts(playerRight, poseRight, GetBodyIndices());
-        }
-        else { foreach(var d in rightPlayerDots) d.SetActive(false); }
+        if (poseLeft != null && !playerLeft.finished) ProcessPlayerHitLogic(playerLeft, poseLeft);
+        if (poseRight != null && !playerRight.finished) ProcessPlayerHitLogic(playerRight, poseRight);
     }
 
-    // Helper to keep code clean
-    private int[] GetBodyIndices()
+    private void ProcessPlayerHitLogic(PlayerState player, Vector3[] pose)
     {
-        List<int> all = new List<int>();
-        all.AddRange(LEFT_LIMBS_INDICES);
-        all.AddRange(RIGHT_LIMBS_INDICES);
-        return all.ToArray();
-    }
-    private void UpdateDebugDots(Vector3[] pose, int[] indices, List<GameObject> dotsPool)
-    {
-        // Hide all first
-        foreach(var d in dotsPool) d.SetActive(false);
-
-        // Show dots for tracked limbs
-        for (int i = 0; i < indices.Length; i++)
+        foreach (int bodyIdx in BODY_INDICES)
         {
-            int bodyPartIndex = indices[i];
-            if (bodyPartIndex >= pose.Length) continue;
+            if (bodyIdx >= pose.Length) continue;
 
-            if (i < dotsPool.Count)
+            Vector2 normPos = new Vector2(pose[bodyIdx].x, pose[bodyIdx].y);
+            Vector2 screenPos = NormalizedToScreenViaFeed(normPos);
+
+            for (int i = player.items.Count - 1; i >= 0; i--)
             {
-                GameObject dot = dotsPool[i];
-                dot.SetActive(true);
+                var item = player.items[i];
+                if (item.hit || item.go == null || !item.go.activeSelf) continue;
 
-                Vector2 normPos = new Vector2(pose[bodyPartIndex].x, pose[bodyPartIndex].y);
-                Vector2 screenPos = NormalizedToScreenViaFeed(normPos);
+                Vector2 itemScreenPos = GetScreenPos(item.rect.position);
 
-                if (mainCanvas.renderMode == RenderMode.ScreenSpaceOverlay)
-                {
-                    dot.transform.position = screenPos;
-                }
-                else
-                {
-                    RectTransformUtility.ScreenPointToWorldPointInRectangle(
-                        mainCanvas.transform as RectTransform, screenPos, uiCamera, out Vector3 worldPos);
-                    dot.transform.position = worldPos;
-                }
-            }
-        }
-    }
-
-    private void CheckHitsForBodyParts(PlayerState player, Vector3[] pose, int[] bodyPartIndices)
-    {
-        // Loop items
-        for (int i = player.items.Count - 1; i >= 0; i--)
-        {
-            var item = player.items[i];
-            if (item.hit) continue;
-
-            Vector2 itemScreenPos;
-            if (mainCanvas.renderMode == RenderMode.ScreenSpaceOverlay)
-                itemScreenPos = item.rect.position;
-            else
-                itemScreenPos = RectTransformUtility.WorldToScreenPoint(uiCamera, item.rect.position);
-
-            // Check against ALL body parts
-            foreach (int partIndex in bodyPartIndices)
-            {
-                if (partIndex >= pose.Length) continue;
-
-                Vector2 bodyPartNorm = new Vector2(pose[partIndex].x, pose[partIndex].y);
-                Vector2 bodyPartScreen = NormalizedToScreenViaFeed(bodyPartNorm);
-
-                float dist = Vector2.Distance(bodyPartScreen, itemScreenPos);
-                
-                if (dist < hitRadius)
+                if (Vector2.Distance(screenPos, itemScreenPos) <= hitRadius)
                 {
                     OnItemTouched(player, item);
-                    goto NextItem; 
+                    break; 
                 }
             }
-            NextItem: continue;
         }
     }
 
-private Vector2 NormalizedToScreenViaFeed(Vector2 norm)
+    // --- COORDINATE MATH ---
+    private Vector2 NormalizedToScreenViaFeed(Vector2 norm)
     {
-        // REMOVED "1f - norm.x" because PoseLandmarkerRunner already flips it!
         float screenX = norm.x; 
         float correctedY = invertY ? (1f - norm.y) : norm.y;
 
         if (cameraFeedRect == null)
-        {
-            return new Vector2(screenX * UnityEngine.Screen.width, correctedY * UnityEngine.Screen.height);
-        }
+            return new Vector2(screenX * Screen.width, correctedY * Screen.height);
 
-        float feedWidth = cameraFeedRect.rect.width;
-        float feedHeight = cameraFeedRect.rect.height;
+        float localX = (screenX - 0.5f) * cameraFeedRect.rect.width;
+        float localY = (correctedY - 0.5f) * cameraFeedRect.rect.height;
 
-        // Map directly to the UI rect
-        float localX = (screenX - 0.5f) * feedWidth;
-        float localY = (correctedY - 0.5f) * feedHeight;
-
-        Vector3 localPosInFeed = new Vector3(localX, localY, 0f);
-        Vector3 worldPos = cameraFeedRect.TransformPoint(localPosInFeed);
-
-        Camera camForUI = (mainCanvas.renderMode == RenderMode.ScreenSpaceOverlay) ? null : uiCamera;
-        return RectTransformUtility.WorldToScreenPoint(camForUI, worldPos);
+        Vector3 worldPos = cameraFeedRect.TransformPoint(new Vector3(localX, localY, 0));
+        return GetScreenPos(worldPos);
     }
-    private void OnItemTouched(PlayerState player, SpawnedItem item)
+
+    private Vector2 GetScreenPos(Vector3 worldPos)
     {
-        item.hit = true;
-        if (item.go != null) item.go.SetActive(false);
-
-        if (item.isX)
-        {
-            if (player.roundCorrect > 0) player.roundCorrect--;
-            player.finished = true;
-            HideAllItems(player);
-        }
-        else if (item.value == player.expectedNext)
-        {
-            player.roundCorrect++;
-            player.expectedNext++;
-            if (player.expectedNext > player.maxNumber) player.finished = true;
-        }
-        else
-        {
-            player.finished = true;
-            HideAllItems(player);
-        }
+        Camera cam = (mainCanvas.renderMode == RenderMode.ScreenSpaceOverlay) ? null : uiCamera;
+        return RectTransformUtility.WorldToScreenPoint(cam, worldPos);
     }
+
+    // --- GAME RULES ---
+private void OnItemTouched(PlayerState player, SpawnedItem item)
+{
+    item.hit = true;
+    if (item.go != null) item.go.SetActive(false);
+
+    // ❌ WRONG: X touched
+    if (item.isX)
+    {
+        PlayWrongSfx();
+
+        if (player.roundCorrect > 0)
+            player.roundCorrect--;
+
+        player.finished = true;
+        HideAllItems(player);
+        return;
+    }
+
+    // ✅ CORRECT number in correct order
+    if (item.value == player.expectedNext)
+    {
+        PlayCorrectSfx();
+
+        player.roundCorrect++;
+        player.expectedNext++;
+
+        if (player.expectedNext > player.maxNumber)
+            player.finished = true;
+    }
+    // ❌ WRONG number (out of order)
+    else
+    {
+        PlayWrongSfx();
+
+        player.finished = true;
+        HideAllItems(player);
+    }
+}
+void PlayCorrectSfx()
+{
+    if (!IsSfxEnabled()) return;
+    if (sfxSource != null && correctTouchSfx != null)
+        sfxSource.PlayOneShot(correctTouchSfx);
+}
+
+void PlayWrongSfx()
+{
+    if (!IsSfxEnabled()) return;
+    if (sfxSource != null && wrongTouchSfx != null)
+        sfxSource.PlayOneShot(wrongTouchSfx);
+}
 
     private void HideAllItems(PlayerState player)
     {
@@ -431,5 +375,59 @@ private Vector2 NormalizedToScreenViaFeed(Vector2 norm)
             if (it.go != null) it.go.SetActive(false);
             it.hit = true; 
         }
+    }
+
+    // ----------------------------------------------------------------------
+    //  IMAGE CAPTURE LOGIC (COPIED)
+    // ----------------------------------------------------------------------
+
+    Texture2D CaptureFromRawImage(RawImage rawImage)
+    {
+        if (rawImage == null || rawImage.texture == null)
+            return null;
+
+        Texture src = rawImage.texture;
+
+        RenderTexture rt = RenderTexture.GetTemporary(
+            src.width,
+            src.height,
+            0,
+            RenderTextureFormat.ARGB32,
+            RenderTextureReadWrite.Linear
+        );
+
+        Graphics.Blit(src, rt);
+
+        RenderTexture prev = RenderTexture.active;
+        RenderTexture.active = rt;
+
+        Texture2D tex = new Texture2D(rt.width, rt.height, TextureFormat.RGBA32, false);
+        tex.ReadPixels(new Rect(0, 0, rt.width, rt.height), 0, 0);
+        tex.Apply();
+
+        RenderTexture.active = prev;
+        RenderTexture.ReleaseTemporary(rt);
+
+        return tex;
+    }
+
+    void SplitAndAssignFinalImages(Texture2D source)
+    {
+        if (source == null) return;
+
+        int width = source.width;
+        int height = source.height;
+        int halfWidth = width / 2;
+
+        Texture2D p1Tex = new Texture2D(halfWidth, height, source.format, false);
+        p1Tex.SetPixels(source.GetPixels(halfWidth, 0, halfWidth, height));
+        p1Tex.Apply();
+
+        Texture2D p2Tex = new Texture2D(halfWidth, height, source.format, false);
+        p2Tex.SetPixels(source.GetPixels(0, 0, halfWidth, height));
+        p2Tex.Apply();
+
+        player1FinalImage = p1Tex;
+        player2FinalImage = p2Tex;
     }
 }

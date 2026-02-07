@@ -138,7 +138,6 @@ public class ResultsPanelManager : MonoBehaviour
              gameManager.ResetGame();
         }
         
-        // Optional: Load Scene 0 if you have a separate Main Menu scene
-        // UnityEngine.SceneManagement.SceneManager.LoadScene(0);
+        UnityEngine.SceneManagement.SceneManager.LoadScene("MenuScene");
     }
 }
