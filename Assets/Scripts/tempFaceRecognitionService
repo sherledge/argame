@@ -1,0 +1,69 @@
+using UnityEngine;
+
+using System.Collections.Generic;
+
+public class FaceRecognitionService : MonoBehaviour
+{
+    [Header("Drag your .onnx file here")]
+    public Unity.InferenceEngine.ModelAsset mobileFaceNetModel; 
+    
+    private Unity.InferenceEngine.Worker worker;
+    private Unity.InferenceEngine.Model runtimeModel;
+    
+    // --- FIX IS HERE ---
+    // The error said "Expected 224", so we must change this from 112 to 224.
+    private const int INPUT_SIZE = 224; 
+
+    void Start()
+    {
+        if (mobileFaceNetModel == null)
+        {
+            Debug.LogError("STOP! Drag the .onnx file into the slot!");
+            return;
+        }
+
+        runtimeModel = Unity.InferenceEngine.ModelLoader.Load(mobileFaceNetModel);
+        worker = new Unity.InferenceEngine.Worker(runtimeModel, Unity.InferenceEngine.BackendType.GPUCompute);
+    }
+
+    public float[] GetFaceEmbedding(Texture2D faceTexture)
+    {
+        if (worker == null) return null;
+
+        // Create the Tensor with the shape the model demands: (1, 3, 224, 224)
+        Unity.InferenceEngine.TensorShape shape = new Unity.InferenceEngine.TensorShape(1, 3, INPUT_SIZE, INPUT_SIZE);
+        
+        using Unity.InferenceEngine.Tensor<float> inputTensor = new Unity.InferenceEngine.Tensor<float>(shape);
+
+        // Convert texture to tensor (automatically resizes to 224x224)
+        Unity.InferenceEngine.TextureConverter.ToTensor(faceTexture, inputTensor, new Unity.InferenceEngine.TextureTransform());
+
+        // Run the AI
+        worker.Schedule(inputTensor);
+
+        // Get Output
+        using Unity.InferenceEngine.Tensor<float> outputTensor = worker.PeekOutput() as Unity.InferenceEngine.Tensor<float>;
+        
+        // Download to array
+        float[] rawEmbedding = outputTensor.DownloadToArray();
+
+        return Normalize(rawEmbedding);
+    }
+
+    private float[] Normalize(float[] v)
+    {
+        float sum = 0;
+        foreach (var f in v) sum += f * f;
+        float magnitude = Mathf.Sqrt(sum);
+        if (magnitude == 0) return v;
+
+        float[] normalized = new float[v.Length];
+        for (int i = 0; i < v.Length; i++) normalized[i] = v[i] / magnitude;
+        return normalized;
+    }
+
+    private void OnDestroy()
+    {
+        worker?.Dispose();
+    }
+}

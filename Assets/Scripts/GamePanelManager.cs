@@ -16,6 +16,7 @@ public class GamePanelManager : MonoBehaviour, IGameStarter, ITutorialListener
     [Header("Tutorial")]
     public GameObject tutorialPanel;
 
+    public DetectionManager detectionManager; // Drag in Inspector or find automatically    
     private Texture2D player1FinalImage;
     private Texture2D player2FinalImage;
 
@@ -73,16 +74,17 @@ public class GamePanelManager : MonoBehaviour, IGameStarter, ITutorialListener
             OnTutorialFinished(); // fallback if tutorial not assigned
     }
 
-    void TransitionToResultsPanel()
+void TransitionToResultsPanel()
     {
-
         gamePanel.SetActive(false);
-
+        
         resultsPanelManager.ShowResults(
             player1Score,
             player2Score,
             player1FinalImage,
-            player2FinalImage
+            player2FinalImage,
+            "Player 1",
+            "Player 2"
         );
     }
     bool IsSfxEnabled()
@@ -164,19 +166,19 @@ public class GamePanelManager : MonoBehaviour, IGameStarter, ITutorialListener
             referenceImageDisplay.gameObject.SetActive(false);
             referenceFrameImage.gameObject.SetActive(false);
             timerText.gameObject.SetActive(true);
-            
-                    // 🔊 Countdown beep
-                    if (IsSfxEnabled() && sfxSource != null && countdownBeepSfx != null)
-                    {
-                        sfxSource.PlayOneShot(countdownBeepSfx);
-                    }
 
-                for (int timer = 3; timer > 0; timer--)
-                {
-                    timerText.text = timer.ToString();
+            // 🔊 Countdown beep
+            if (IsSfxEnabled() && sfxSource != null && countdownBeepSfx != null)
+            {
+                sfxSource.PlayOneShot(countdownBeepSfx);
+            }
 
-                    yield return new WaitForSeconds(1f);
-                }
+            for (int timer = 3; timer > 0; timer--)
+            {
+                timerText.text = timer.ToString();
+
+                yield return new WaitForSeconds(1f);
+            }
 
             timerText.text = "Pose!";
             yield return new WaitForSeconds(1f);
@@ -194,18 +196,9 @@ public class GamePanelManager : MonoBehaviour, IGameStarter, ITutorialListener
                 int width = capturedFullImage.width;
                 int height = capturedFullImage.height;
                 int halfWidth = width / 2;
-
-
-                // Player 1 is physically on the LEFT, but in a mirrored webcam, 
-                // they appear on the RIGHT side of the texture.
-                // So Player 1 needs to grab from halfWidth to width.
                 Texture2D player1CroppedTex = new Texture2D(halfWidth, height, capturedFullImage.format, false);
                 player1CroppedTex.SetPixels(capturedFullImage.GetPixels(halfWidth, 0, halfWidth, height));
                 player1CroppedTex.Apply();
-
-                // Player 2 is physically on the RIGHT, but in a mirrored webcam,
-                // they appear on the LEFT side of the texture.
-                // So Player 2 needs to grab from 0 to halfWidth.
                 Texture2D player2CroppedTex = new Texture2D(halfWidth, height, capturedFullImage.format, false);
                 player2CroppedTex.SetPixels(capturedFullImage.GetPixels(0, 0, halfWidth, height));
                 player2CroppedTex.Apply();

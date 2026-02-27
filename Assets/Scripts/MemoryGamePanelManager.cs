@@ -7,8 +7,8 @@ using TMPro;
 public class MemoryGamePanelManager : MonoBehaviour, IGameStarter, ITutorialListener
 {
     [Header("Audio")]
-public AudioSource sfxSource;
-public AudioClip padTouchSfx;
+    public AudioSource sfxSource;
+    public AudioClip padTouchSfx;
 
     public enum MemoryColor
     {
@@ -24,7 +24,7 @@ public AudioClip padTouchSfx;
     public float roundDuration = 10f;
 
     [Header("Camera Feed")]
-    public RawImage cameraFeedRawImage; // <--- ASSIGN THIS IN INSPECTOR!
+    public RawImage cameraFeedRawImage;
 
     [Header("Item Sprites")]
     public Sprite spriteRed;
@@ -33,18 +33,18 @@ public AudioClip padTouchSfx;
     public Sprite spriteYellow;
 
     [Header("UI: Preview 3x4 Grid")]
-    public Image[] previewCells; 
+    public Image[] previewCells;
     public GameObject memorizePanel;
 
     [Header("UI: Round Result Center Row")]
-    public GameObject resultsOverlayPanel; 
-    public Image[] correctRowSlots; 
+    public GameObject resultsOverlayPanel;
+    public Image[] correctRowSlots;
 
     [Header("UI: Player Rows")]
-    public Image[] player1RowSlots; 
-    public Image[] player1MarkIcons; 
-    public Image[] player2RowSlots; 
-    public Image[] player2MarkIcons; 
+    public Image[] player1RowSlots;
+    public Image[] player1MarkIcons;
+    public Image[] player2RowSlots;
+    public Image[] player2MarkIcons;
 
     [Header("UI: Texts")]
     public TMP_Text roundLabelText;
@@ -74,7 +74,7 @@ public AudioClip padTouchSfx;
     // --- Image Capture Variables ---
     private Texture2D player1FinalImage;
     private Texture2D player2FinalImage;
-
+    public DetectionManager detectionManager; // Drag in Inspector or find automatically
     public static MemoryGamePanelManager Instance { get; private set; }
 
     private void Awake()
@@ -90,10 +90,10 @@ public AudioClip padTouchSfx;
         gamePanel.SetActive(true);
         StartCoroutine(GameFlowCoroutine());
     }
-bool IsSfxEnabled()
-{
-    return PlayerPrefs.GetInt("SFX_ENABLED", 1) == 1;
-}
+    bool IsSfxEnabled()
+    {
+        return PlayerPrefs.GetInt("SFX_ENABLED", 1) == 1;
+    }
 
     private void ResetGame()
     {
@@ -130,7 +130,7 @@ bool IsSfxEnabled()
         if (img != null)
         {
             img.sprite = null;
-            img.color = new Color(1, 1, 1, 0); 
+            img.color = new Color(1, 1, 1, 0);
         }
     }
 
@@ -144,7 +144,7 @@ bool IsSfxEnabled()
         if (img != null && s != null)
         {
             img.sprite = s;
-            img.color = Color.white; 
+            img.color = Color.white;
         }
     }
 
@@ -171,9 +171,9 @@ bool IsSfxEnabled()
 
         if (memorizeDuration > 0f) yield return new WaitForSeconds(memorizeDuration);
         if (memorizePanel != null) memorizePanel.SetActive(false);
-        
+
         if (colorPanel != null) colorPanel.SetActive(true);
-        
+
         for (_currentRoundIndex = 0; _currentRoundIndex < totalRounds; _currentRoundIndex++)
         {
             yield return StartCoroutine(PlaySingleRound());
@@ -181,22 +181,22 @@ bool IsSfxEnabled()
 
         yield return new WaitForSeconds(1.0f);
 
-        // --- CHANGED: Capture and Pass Images ---
         if (resultsPanelManager != null)
         {
             // 1. Capture the full screen feed
             Texture2D fullSnap = CaptureFromRawImage(cameraFeedRawImage);
-            
+
             // 2. Split it into P1/P2
             SplitAndAssignFinalImages(fullSnap);
+            string p1Name = "Player 1";
+            string p2Name = "Player 2";
 
             // 3. Pass to Results Panel
-            resultsPanelManager.ShowResults(_player2TotalScore, _player1TotalScore, player1FinalImage, player2FinalImage);
+            resultsPanelManager.ShowResults(_player2TotalScore, _player1TotalScore, player1FinalImage, player2FinalImage, p1Name, p2Name);
         }
     }
 
-    // ... [Logic for Round Generation, PlaySingleRound, and Scoring remains the same] ...
-    
+
     private void GenerateAllRoundPatterns()
     {
         _roundPatterns = new MemoryColor[totalRounds][];
@@ -239,7 +239,7 @@ bool IsSfxEnabled()
         ClearRow(player2RowSlots, player2MarkIcons);
 
         if (roundLabelText != null) roundLabelText.text = $"Round {_currentRoundIndex + 1} / {totalRounds}";
-        
+
         float timeLeft = roundDuration;
         _roundActive = true;
 
@@ -257,25 +257,25 @@ bool IsSfxEnabled()
         if (resultsOverlayPanel != null) resultsOverlayPanel.SetActive(false);
     }
 
-public void OnPlayerColorTouched(int playerIndex, MemoryColor color)
-{
-    if (!_roundActive) return;
-
-    List<MemoryColor> targetList = playerIndex == 1 ? _p1Selections : _p2Selections;
-
-    // Reject invalid touches
-    if (targetList.Count >= 4 || targetList.Contains(color))
-        return;
-
-    // 🔊 PLAY SFX (valid touch only)
-    if (IsSfxEnabled() && sfxSource != null && padTouchSfx != null)
+    public void OnPlayerColorTouched(int playerIndex, MemoryColor color)
     {
-        sfxSource.PlayOneShot(padTouchSfx);
-    }
+        if (!_roundActive) return;
 
-    targetList.Add(color);
-    UpdatePlayerRowUI(playerIndex, targetList);
-}
+        List<MemoryColor> targetList = playerIndex == 1 ? _p1Selections : _p2Selections;
+
+        // Reject invalid touches
+        if (targetList.Count >= 4 || targetList.Contains(color))
+            return;
+
+        // 🔊 PLAY SFX (valid touch only)
+        if (IsSfxEnabled() && sfxSource != null && padTouchSfx != null)
+        {
+            sfxSource.PlayOneShot(padTouchSfx);
+        }
+
+        targetList.Add(color);
+        UpdatePlayerRowUI(playerIndex, targetList);
+    }
 
 
     private void UpdatePlayerRowUI(int playerIndex, List<MemoryColor> selections)
@@ -301,8 +301,8 @@ public void OnPlayerColorTouched(int playerIndex, MemoryColor color)
     private MemoryColor[] BuildFixedRow(List<MemoryColor> selections)
     {
         MemoryColor[] row = new MemoryColor[4];
-        for (int i = 0; i < 4; i++) 
-            row[i] = (i < selections.Count) ? selections[i] : (MemoryColor)(-1); 
+        for (int i = 0; i < 4; i++)
+            row[i] = (i < selections.Count) ? selections[i] : (MemoryColor)(-1);
         return row;
     }
 

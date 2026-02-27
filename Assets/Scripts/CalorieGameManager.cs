@@ -7,39 +7,37 @@ using System.Linq;
 
 public class CalorieGameManager : MonoBehaviour, IGameStarter, ITutorialListener
 {
-[Header("Audio")]
-public AudioSource sfxSource;
-public AudioClip jumpSfx;
+    [Header("Audio")]
+    public AudioSource sfxSource;
+    public AudioClip jumpSfx;
     private Texture2D player1FinalImage;
     private Texture2D player2FinalImage;
     [Header("Tutorial")]
-public GameObject tutorialPanel;
+    public GameObject tutorialPanel;
 
 
     [Header("Animation References")]
-    public Animator player1Panda; // Drag Player 1's Panda GameObject (with Animator) here
-    public Animator player2Panda; // Drag Player 2's Panda GameObject (with Animator) here
+    public Animator player1Panda; 
+    public Animator player2Panda;
 
     [Header("UI Elements")]
     public TMP_Text timerText;
     public RawImage liveCameraFeedRawImage;
-    public TMP_Text player1ScoreText; // Displays Calories for P1
-    public TMP_Text player2ScoreText; // Displays Calories for P2
-
+    public TMP_Text player1ScoreText;
+    public TMP_Text player2ScoreText;
     [Header("Dependencies")]
     public PoseDetectionProvider poseProvider;
     public ResultsPanelManager resultsPanelManager;
-
+public DetectionManager detectionManager; // Drag in Inspector or find automatically
     [Header("Game Settings")]
-    public float gameDuration = 60f; // How long the workout lasts in seconds
-    public float caloriesPerJump = 0.5f; // How many calories credited per jump
-    
+    public float gameDuration = 60f;
+    public float caloriesPerJump = 0.5f;
+
     [Header("Jump Detection Settings")]
     [Tooltip("How much Y movement is required to trigger a jump")]
-    public float jumpThreshold = 0.05f; 
+    public float jumpThreshold = 0.05f;
     [Tooltip("Time in seconds before another jump can be registered (prevents double counting)")]
     public float jumpCooldown = 0.5f;
-
     [Header("Panel References")]
     public GameObject gamePanel;
 
@@ -57,7 +55,7 @@ public GameObject tutorialPanel;
     private float p1JumpTimer;
     private float p2JumpTimer;
 
-    // Data Structures matching your Pose Provider
+    // Data Structures matching Pose Provider
     [System.Serializable]
     public class KeypointData { public float x, y, z, visibility; }
 
@@ -65,17 +63,17 @@ public GameObject tutorialPanel;
     {
         ResetGame();
         timerText.gameObject.SetActive(false);
-            // Show tutorial first
-    tutorialPanel.SetActive(true);
+        // Show tutorial first
+        tutorialPanel.SetActive(true);
     }
-public void OnTutorialFinished()
-{
-    StartCoroutine(WaitForPoseFeed());
-}
-bool IsSfxEnabled()
-{
-    return PlayerPrefs.GetInt("SFX_ENABLED", 1) == 1;
-}
+    public void OnTutorialFinished()
+    {
+        StartCoroutine(WaitForPoseFeed());
+    }
+    bool IsSfxEnabled()
+    {
+        return PlayerPrefs.GetInt("SFX_ENABLED", 1) == 1;
+    }
 
     public void ResetGame()
     {
@@ -84,7 +82,7 @@ bool IsSfxEnabled()
         player2Calories = 0;
         poseFeedReady = false;
         isGameActive = false;
-        
+
         // Reset Jump Tracking
         p1JumpTimer = 0;
         p2JumpTimer = 0;
@@ -105,24 +103,29 @@ bool IsSfxEnabled()
         player2ScoreText.text = $"{player2Calories:F1} Kcal";
     }
 
-    void TransitionToResultsPanel()
+void TransitionToResultsPanel()
     {
         isGameActive = false;
         gamePanel.SetActive(false);
 
-        // Capture the final moment for the results screen
         finalThumbnail = CaptureFromRawImage(liveCameraFeedRawImage);
         SplitAndAssignFinalImages(finalThumbnail);
 
+        int scoreP1 = Mathf.FloorToInt(player1Calories);
+        int scoreP2 = Mathf.FloorToInt(player2Calories);
+
+        // Just pass default names to results panel. The Results panel handles saving now.
         resultsPanelManager.ShowResults(
-            Mathf.FloorToInt(player1Calories), 
-            Mathf.FloorToInt(player2Calories), 
-            player1FinalImage, 
-            player2FinalImage
+            scoreP1,
+            scoreP2,
+            player1FinalImage,
+            player2FinalImage,
+            "Player 1",
+            "Player 2"
         );
     }
-
-    IEnumerator WaitForPoseFeed()
+    
+     IEnumerator WaitForPoseFeed()
     {
         Debug.Log("Waiting for camera feed...");
         float timeout = 10f;
@@ -143,7 +146,7 @@ bool IsSfxEnabled()
 
         if (poseFeedReady)
         {
-            yield return new WaitForSeconds(0.5f); // Let pose detection warm up
+            yield return new WaitForSeconds(0.5f);
             StartGameplay();
         }
         else
@@ -156,11 +159,7 @@ bool IsSfxEnabled()
     public void StartGameplay()
     {
         timerText.gameObject.SetActive(true);
-        
-        // Setup initial texture display just to ensure they are visible
-        // In this mode, we might just show the raw feed in the back, 
-        // but if you want separate cropped feeds, we can do that in Update.
-        
+
         isGameActive = true;
     }
 
@@ -168,7 +167,7 @@ bool IsSfxEnabled()
     {
         if (!isGameActive || !poseFeedReady) return;
 
-        // 1. Update Timer
+        // Update Timer
         currentTime -= Time.deltaTime;
         timerText.text = Mathf.CeilToInt(currentTime).ToString();
 
@@ -179,9 +178,9 @@ bool IsSfxEnabled()
             return;
         }
 
-        // 2. Process Pose Data
+        // Process Pose Data
         List<Vector3[]> currentDetectedPoses = poseProvider.GetAllDetectedPoseKeypoints()?.ToList();
-        
+
         if (currentDetectedPoses != null && currentDetectedPoses.Count > 0)
         {
             // Sort poses: P1 is usually Right on screen (Left physically), P2 is Left on screen
@@ -203,7 +202,7 @@ bool IsSfxEnabled()
                 else p2Pose = sortedPoses[0];
             }
 
-            // 3. Detect Jumps
+            // Detect Jumps
             if (p1Pose != null) DetectJump(p1Pose, 1);
             if (p2Pose != null) DetectJump(p2Pose, 2);
         }
@@ -216,12 +215,7 @@ bool IsSfxEnabled()
     // Logic to detect a vertical jump based on Hip movement
     void DetectJump(Vector3[] poseLandmarks, int playerID)
     {
-        // MediaPipe Pose landmarks 23 and 24 are hips. 
-        // Index 0 is nose. 
-        // Let's use the average of hips (indices 23 and 24) if available, or just the nose (0) if simplified.
-        // Assuming your pose provider returns standard MediaPipe 33 landmarks.
-        // If your array is smaller, adjust indices.
-        
+
         float currentY = 0f;
 
         // Safety check for array length (Standard MP has 33 points)
@@ -239,10 +233,7 @@ bool IsSfxEnabled()
         float lastY = (playerID == 1) ? p1LastHipY : p2LastHipY;
         float cooldown = (playerID == 1) ? p1JumpTimer : p2JumpTimer;
 
-        // Note: In many Normalized coordinates, Y=0 is Top, Y=1 is Bottom.
-        // So a Jump means Y value DECREASES. 
-        // We check the absolute delta to be safe, or specifically check "Up".
-        
+
         // Calculate difference
         float deltaY = lastY - currentY; // Positive if moving UP (towards 0)
 
@@ -258,33 +249,33 @@ bool IsSfxEnabled()
         else p2LastHipY = currentY;
     }
 
-void RegisterJump(int playerID)
-{
-    // 🔊 Play jump SFX (once per valid jump)
-    if (IsSfxEnabled() && sfxSource != null && jumpSfx != null)
+    void RegisterJump(int playerID)
     {
-        sfxSource.PlayOneShot(jumpSfx);
+        // 🔊 Play jump SFX (once per valid jump)
+        if (IsSfxEnabled() && sfxSource != null && jumpSfx != null)
+        {
+            sfxSource.PlayOneShot(jumpSfx);
+        }
+
+        if (playerID == 1)
+        {
+            player1Calories += caloriesPerJump;
+            p1JumpTimer = jumpCooldown;
+
+            if (player1Panda != null)
+                player1Panda.SetTrigger("Jump");
+        }
+        else
+        {
+            player2Calories += caloriesPerJump;
+            p2JumpTimer = jumpCooldown;
+
+            if (player2Panda != null)
+                player2Panda.SetTrigger("Jump");
+        }
+
+        UpdateScoreUI();
     }
-
-    if (playerID == 1)
-    {
-        player1Calories += caloriesPerJump;
-        p1JumpTimer = jumpCooldown;
-
-        if (player1Panda != null)
-            player1Panda.SetTrigger("Jump");
-    }
-    else
-    {
-        player2Calories += caloriesPerJump;
-        p2JumpTimer = jumpCooldown;
-
-        if (player2Panda != null)
-            player2Panda.SetTrigger("Jump");
-    }
-
-    UpdateScoreUI();
-}
 
 
     #region Helper Methods
@@ -312,36 +303,36 @@ void RegisterJump(int playerID)
         player2FinalImage = p2Tex;
     }
 
-   Texture2D CaptureFromRawImage(RawImage rawImage)
-{
-    if (rawImage == null || rawImage.texture == null)
-        return null;
+    Texture2D CaptureFromRawImage(RawImage rawImage)
+    {
+        if (rawImage == null || rawImage.texture == null)
+            return null;
 
-    Texture src = rawImage.texture;
+        Texture src = rawImage.texture;
 
-    // 🔴 Force copy via RenderTexture
-    RenderTexture rt = RenderTexture.GetTemporary(
-        src.width,
-        src.height,
-        0,
-        RenderTextureFormat.ARGB32,
-        RenderTextureReadWrite.Linear
-    );
+        // 🔴 Force copy via RenderTexture
+        RenderTexture rt = RenderTexture.GetTemporary(
+            src.width,
+            src.height,
+            0,
+            RenderTextureFormat.ARGB32,
+            RenderTextureReadWrite.Linear
+        );
 
-    Graphics.Blit(src, rt);
+        Graphics.Blit(src, rt);
 
-    RenderTexture prev = RenderTexture.active;
-    RenderTexture.active = rt;
+        RenderTexture prev = RenderTexture.active;
+        RenderTexture.active = rt;
 
-    Texture2D tex = new Texture2D(rt.width, rt.height, TextureFormat.RGBA32, false);
-    tex.ReadPixels(new Rect(0, 0, rt.width, rt.height), 0, 0);
-    tex.Apply();
+        Texture2D tex = new Texture2D(rt.width, rt.height, TextureFormat.RGBA32, false);
+        tex.ReadPixels(new Rect(0, 0, rt.width, rt.height), 0, 0);
+        tex.Apply();
 
-    RenderTexture.active = prev;
-    RenderTexture.ReleaseTemporary(rt);
+        RenderTexture.active = prev;
+        RenderTexture.ReleaseTemporary(rt);
 
-    return tex;
-}
+        return tex;
+    }
 
 
     #endregion

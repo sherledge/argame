@@ -51,10 +51,9 @@ public class ForceCameraManager : MonoBehaviour
             yield break;
         }
 
-        // --- THIS IS THE FINAL FIX ---
         // We must request both Camera and Storage permissions for the app to function.
         yield return RequestAllPermissions();
-        // --- END OF FIX ---
+
 
         float timeout = 5.0f;
         float elapsedTime = 0f;

@@ -5,12 +5,21 @@ using System.Linq;
 
 public class PlayerLobbyUI : MonoBehaviour
 {
+    // --- NEW: FACE LOGIN SECTION ---
+    [Header("Face Login Info")]
+    public TextMeshProUGUI playerNameText; // Drag your Name Text here
+    public TextMeshProUGUI scoreText;      // Drag your Score Text here
+
+    // This checks if the Skeleton is good (Visible) AND if we have a name (Logged In)
+    // You can customize this. For now, we trust the visual check.
+    public bool IsFullyReady { get; private set; } = false;
+
+    // --- EXISTING: SKELETON VISUALS ---
     [Header("Monkey & Bubble")]
     public TextMeshProUGUI speechBubbleText;
-    public GameObject monkeyImage; // Optional: To animate/bounce the monkey later
+    public GameObject monkeyImage; 
 
     [Header("Skeleton Visuals (Images)")]
-    // Drag white stickman part images here. They will turn green when detected.
     public Image headImage;
     public Image torsoImage;
     public Image leftArmImage;
@@ -22,10 +31,25 @@ public class PlayerLobbyUI : MonoBehaviour
     public Color missingColor = Color.white;
     public Color detectedColor = Color.green;
 
-    // Internal state
-    public bool IsFullyReady { get; private set; } = false;
 
-    // Helper to reset UI when no player is found
+    // --- 1. NEW METHODS FOR DETECTION MANAGER ---
+    // These are the functions your DetectionManager was looking for!
+
+    public void SetPlayerName(string name)
+    {
+        if (playerNameText != null) 
+            playerNameText.text = name;
+    }
+
+    public void SetScore(int score)
+    {
+        if (scoreText != null) 
+            scoreText.text = "Score: " + score.ToString();
+    }
+
+
+    // --- 2. EXISTING LOGIC (Unchanged) ---
+
     public void SetSearchingState()
     {
         SetColor(headImage, missingColor);
@@ -35,7 +59,9 @@ public class PlayerLobbyUI : MonoBehaviour
         SetColor(leftLegImage, missingColor);
         SetColor(rightLegImage, missingColor);
 
-        speechBubbleText.text = "Where are you? Come closer!";
+        if(speechBubbleText != null) 
+            speechBubbleText.text = "Where are you? Come closer!";
+        
         IsFullyReady = false;
     }
 
@@ -47,7 +73,6 @@ public class PlayerLobbyUI : MonoBehaviour
             return;
         }
 
-        // --- 1. Check Visibility of Key Parts ---
         // BlazePose Landmark mapping (simplified):
         // 0=Nose, 11=L_Shoulder, 12=R_Shoulder, 15=L_Wrist, 16=R_Wrist, 
         // 23=L_Hip, 24=R_Hip, 27=L_Ankle, 28=R_Ankle
@@ -59,7 +84,7 @@ public class PlayerLobbyUI : MonoBehaviour
         bool lLegVis = IsVisible(landmarks, 23) && IsVisible(landmarks, 27);
         bool rLegVis = IsVisible(landmarks, 24) && IsVisible(landmarks, 28);
 
-        // --- 2. Update Colors ---
+        // Update Colors
         SetColor(headImage, headVis ? detectedColor : missingColor);
         SetColor(torsoImage, torsoVis ? detectedColor : missingColor);
         SetColor(leftArmImage, lArmVis ? detectedColor : missingColor);
@@ -67,36 +92,33 @@ public class PlayerLobbyUI : MonoBehaviour
         SetColor(leftLegImage, lLegVis ? detectedColor : missingColor);
         SetColor(rightLegImage, rLegVis ? detectedColor : missingColor);
 
-        // --- 3. Determine Monkey Feedback ---
+        // Determine Monkey Feedback
         if (!headVis)
         {
-            speechBubbleText.text = "I can't see your face! Look at the camera.";
+            if(speechBubbleText != null) speechBubbleText.text = "I can't see your face!";
             IsFullyReady = false;
         }
         else if (!lArmVis || !rArmVis)
         {
-            speechBubbleText.text = "Wave your hands! Let me see them.";
+            if(speechBubbleText != null) speechBubbleText.text = "Wave your hands!";
             IsFullyReady = false;
         }
         else if (!lLegVis || !rLegVis)
         {
-            speechBubbleText.text = "Step back! I need to see your feet.";
+            if(speechBubbleText != null) speechBubbleText.text = "Step back a bit!";
             IsFullyReady = false;
         }
         else
         {
-            speechBubbleText.text = "Perfect! You look ready!";
+            if(speechBubbleText != null) speechBubbleText.text = "Perfect! Ready!";
             IsFullyReady = true;
         }
     }
 
-    // Check if point is roughly within screen bounds and valid
     private bool IsVisible(Vector3[] pose, int index)
     {
         if (index >= pose.Length) return false;
         Vector3 point = pose[index];
-        // Assuming normalized coordinates (0 to 1). 
-        // If your pose provider returns screen pixels, compare against Screen.width/height
         return point.x > 0.01f && point.x < 0.99f && point.y > 0.01f && point.y < 0.99f;
     }
 

@@ -35,6 +35,7 @@ public AudioClip wrongTouchSfx;
     [Header("Sprites")]
     public List<Sprite> numberSprites;    
     public Sprite xSprite;                
+public DetectionManager detectionManager; // Drag in Inspector or find automatically
 
     [Header("UI")]
     public TMP_Text roundLabel;
@@ -159,15 +160,16 @@ bool IsSfxEnabled()
             yield return new WaitForSeconds(1f);
         }
 
-        // --- CHANGED: Capture and Pass Images ---
         if (resultsPanelManager != null)
         {
             // 1. Capture Logic
             Texture2D fullSnap = CaptureFromRawImage(cameraFeedRawImage);
             SplitAndAssignFinalImages(fullSnap);
+            string p1Name = "Player 1";
+    string p2Name = "Player 2";
 
             // 2. Pass Logic
-            resultsPanelManager.ShowResults(player2TotalScore, player1TotalScore, player1FinalImage, player2FinalImage);
+            resultsPanelManager.ShowResults(player2TotalScore, player1TotalScore, player1FinalImage, player2FinalImage,p1Name, p2Name);
         }
     }
 

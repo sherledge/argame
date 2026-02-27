@@ -1,0 +1,342 @@
+using UnityEngine;
+using UnityEngine.UI;
+using TMPro;
+using System.Collections;
+using System.Collections.Generic; // Added for Lists
+using System.Linq;
+
+public class FaceLoginManager : MonoBehaviour
+{
+    [Header("UI References")]
+    public GameObject loginPanel;
+    public TMP_Text statusText;
+    
+    [Header("Selection UI")]
+    public TMP_Dropdown userListDropdown; // <--- NEW: Drag your Dropdown here
+    public Button confirmButton;          // Confirms the selected name in dropdown
+    
+    [Header("Registration UI")]
+    public Button switchToRegisterButton; // "New User?" button
+    public GameObject registerPanel;      // Group containing Input + Save Button
+    public TMP_InputField nameInput;
+    public Button saveNewUserButton;      // "Save" button
+    
+    [Header("Side Selection")]
+    public GameObject sideSelectionPanel; 
+    public Button leftSideButton;  
+    public Button rightSideButton; 
+
+    [Header("AR / Face")]
+    public FaceRecognitionService faceAI; 
+    public PoseDetectionProvider poseProvider; 
+
+    public System.Action<PlayerProfile, bool> OnPlayerLogin; 
+private Texture2D lastCapturedFaceTexture;
+    private PlayerDatabase db;
+    private PlayerProfile pendingProfile; // The profile currently selected in Dropdown
+    private bool isScanning = false;
+    private float[] currentDetectedEmbedding;
+    private float cooldownTimer = 0f;
+
+    void Start()
+    {
+        db = SaveSystem.Load();
+        loginPanel.SetActive(false);
+        sideSelectionPanel.SetActive(false);
+        
+        // Hide sub-panels
+        if(registerPanel) registerPanel.SetActive(false);
+        if(userListDropdown) userListDropdown.gameObject.SetActive(false);
+        if(confirmButton) confirmButton.gameObject.SetActive(false);
+        if(switchToRegisterButton) switchToRegisterButton.gameObject.SetActive(false);
+
+        // Setup Dropdown Listener
+        if(userListDropdown)
+        {
+            userListDropdown.onValueChanged.AddListener(OnDropdownValueChanged);
+        }
+        Debug.Log("📂 DATA PATH: " + Application.persistentDataPath);
+    }
+
+    public void StartLoginPhase(string promptMessage = "Please center your face...")
+    {
+        // 1. Refresh Dropdown List from DB
+        PopulateDropdown();
+
+        // 2. Reset UI
+        loginPanel.SetActive(true);
+        sideSelectionPanel.SetActive(false);
+        registerPanel.SetActive(false);
+        
+        userListDropdown.gameObject.SetActive(false);
+        confirmButton.gameObject.SetActive(false);
+        switchToRegisterButton.gameObject.SetActive(false);
+        
+        statusText.text = promptMessage;
+        isScanning = true;
+    }
+
+    void Update()
+    {
+        if (!isScanning) return;
+        if (poseProvider == null) return;
+
+        if (cooldownTimer > 0)
+        {
+            cooldownTimer -= Time.deltaTime;
+            return;
+        }
+
+        if (CheckIfFaceIsCentered())
+        {
+            cooldownTimer = 3.0f; 
+            StartCoroutine(CaptureAndRecognizeRoutine());
+        }
+    }
+
+    bool CheckIfFaceIsCentered()
+    {
+        var poses = poseProvider.GetAllDetectedPoseKeypoints();
+        if (poses == null) return false;
+
+        foreach (var pose in poses)
+        {
+            if (pose != null && pose.Length > 0)
+            {
+                Vector3 nose = pose[0]; 
+                if (nose.x > 0.35f && nose.x < 0.65f && 
+                    nose.y > 0.35f && nose.y < 0.65f)
+                {
+                    return true; 
+                }
+            }
+        }
+        return false;
+    }
+
+    IEnumerator CaptureAndRecognizeRoutine()
+    {
+        statusText.text = "Hold still...";
+        
+        CanvasGroup cg = loginPanel.GetComponent<CanvasGroup>();
+        if(cg != null) cg.alpha = 0; 
+        yield return new WaitForEndOfFrame();
+
+        Texture2D screenCap = ScreenCapture.CaptureScreenshotAsTexture();
+        Texture2D faceImg = CropCenterFace(screenCap);
+
+        // --- FIX: MEMORY MANAGEMENT ---
+        // 1. If we have an OLD photo sitting in memory, destroy it now.
+        if (lastCapturedFaceTexture != null) 
+        {
+            Destroy(lastCapturedFaceTexture);
+        }
+
+        // 2. Save the NEW photo to the variable
+        lastCapturedFaceTexture = faceImg; 
+
+        if(cg != null) cg.alpha = 1;
+
+        statusText.text = "Processing...";
+        currentDetectedEmbedding = faceAI.GetFaceEmbedding(faceImg);
+
+        Destroy(screenCap);
+        
+        // --- CRITICAL FIX: DO NOT DESTROY faceImg HERE! ---
+        // We removed: Destroy(faceImg); 
+        // We need it to stay alive until you click "Register" or scan again.
+
+        // --- FIND BEST MATCH ---
+        PlayerProfile bestMatch = null;
+        if (db.profiles.Count > 0)
+        {
+            foreach(var profile in db.profiles)
+            {
+                if(FaceComparison.IsSamePerson(currentDetectedEmbedding, profile.faceEmbedding))
+                {
+                     bestMatch = profile; 
+                     break; 
+                }
+            }
+        }
+
+        // --- UPDATE UI WITH MATCH ---
+        userListDropdown.gameObject.SetActive(true);
+        confirmButton.gameObject.SetActive(true);
+        switchToRegisterButton.gameObject.SetActive(true);
+        isScanning = false; 
+
+        if (bestMatch != null)
+        {
+            statusText.text = $"Is this {bestMatch.playerName}?";
+            SelectUserInDropdown(bestMatch.playerName);
+            pendingProfile = bestMatch;
+        }
+        else
+        {
+            statusText.text = "Face not recognized. Select name or Register.";
+            if(userListDropdown.options.Count > 0) 
+            {
+                userListDropdown.value = 0;
+                OnDropdownValueChanged(0); 
+            }
+        }
+    }
+
+    // --- DROPDOWN LOGIC ---
+
+    void PopulateDropdown()
+    {
+        if(userListDropdown == null) return;
+
+        userListDropdown.ClearOptions();
+        List<string> options = new List<string>();
+
+        // Add actual users
+        foreach(var p in db.profiles)
+        {
+            options.Add(p.playerName);
+        }
+
+        userListDropdown.AddOptions(options);
+    }
+
+    void SelectUserInDropdown(string nameToFind)
+    {
+        if(userListDropdown == null) return;
+
+        for(int i=0; i<userListDropdown.options.Count; i++)
+        {
+            if(userListDropdown.options[i].text == nameToFind)
+            {
+                userListDropdown.value = i;
+                return;
+            }
+        }
+    }
+
+    public void OnDropdownValueChanged(int index)
+    {
+        // When user manually picks a name from the list
+        if(db.profiles.Count > index)
+        {
+            pendingProfile = db.profiles[index];
+            statusText.text = $"Welcome, {pendingProfile.playerName}!";
+        }
+    }
+
+    // --- BUTTONS ---
+
+    public void OnConfirmIdentity()
+    {
+        // The user confirmed the name currently selected in the Dropdown
+        if(pendingProfile != null)
+        {
+            ShowSideSelection();
+        }
+        else
+        {
+            statusText.text = "Please select a name first.";
+        }
+    }
+
+    public void OnSwitchToRegister()
+    {
+        // Hide Dropdown UI, Show Input UI
+        userListDropdown.gameObject.SetActive(false);
+        confirmButton.gameObject.SetActive(false);
+        switchToRegisterButton.gameObject.SetActive(false);
+
+        registerPanel.SetActive(true);
+        statusText.text = "Enter new name:";
+    }
+
+public void OnSaveNewUser()
+    {
+        string newName = nameInput.text;
+        if (string.IsNullOrEmpty(newName)) 
+        {
+            statusText.text = "Enter a name first!";
+            return;
+        }
+
+        PlayerProfile newProfile = new PlayerProfile();
+        newProfile.playerName = newName;
+        newProfile.faceEmbedding = currentDetectedEmbedding;
+        newProfile.playerUUID = System.Guid.NewGuid().ToString();
+        
+        // --- NEW: SAVE THE PHOTO ---
+        // We use the texture we just cropped (this variable is set in CaptureAndRecognizeRoutine)
+        // Note: We need to store that texture in a class variable first!
+        if (lastCapturedFaceTexture != null)
+        {
+            newProfile.photoFileName = newProfile.playerUUID + ".png";
+            SaveSystem.SaveProfilePicture(lastCapturedFaceTexture, newProfile.playerUUID);
+        }
+
+        db.profiles.Add(newProfile);
+        SaveSystem.Save(db);
+
+        pendingProfile = newProfile;
+        ShowSideSelection();
+    }
+    
+    public void RetryScan()
+    {
+        // Reset everything
+        registerPanel.SetActive(false);
+        userListDropdown.gameObject.SetActive(false);
+        confirmButton.gameObject.SetActive(false);
+        switchToRegisterButton.gameObject.SetActive(false);
+        
+        cooldownTimer = 1.0f; 
+        isScanning = true;
+        statusText.text = "Look at the camera...";
+    }
+
+    // --- HELPER ---
+    Texture2D CropCenterFace(Texture2D fullImage)
+    {
+        int size = Mathf.Min(fullImage.width, fullImage.height) / 2; 
+        int x = (fullImage.width - size) / 2;
+        int y = (fullImage.height - size) / 2;
+        Color[] pixels = fullImage.GetPixels(x, y, size, size);
+        Texture2D cropped = new Texture2D(size, size);
+        cropped.SetPixels(pixels);
+        cropped.Apply();
+        return cropped;
+    }
+
+    void ShowSideSelection()
+    {
+        loginPanel.SetActive(false);
+        sideSelectionPanel.SetActive(true);
+    }
+    
+    public void LockSideButton(bool isLeftTaken)
+    {
+        if(isLeftTaken)
+        {
+            if(leftSideButton) leftSideButton.interactable = false;
+            if(rightSideButton) rightSideButton.interactable = true;
+        }
+        else
+        {
+            if(rightSideButton) rightSideButton.interactable = false;
+            if(leftSideButton) leftSideButton.interactable = true;
+        }
+    }
+
+    public void ResetButtons()
+    {
+        if(leftSideButton) leftSideButton.interactable = true;
+        if(rightSideButton) rightSideButton.interactable = true;
+    }
+
+    public void OnSideSelected(bool isLeft)
+    {
+        OnPlayerLogin?.Invoke(pendingProfile, isLeft);
+        sideSelectionPanel.SetActive(false);
+        nameInput.text = "";
+    }
+}

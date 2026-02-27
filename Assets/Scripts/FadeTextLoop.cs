@@ -1,7 +1,6 @@
 using UnityEngine;
-using System.Collections; // Make sure this is included for IEnumerator
-
-[RequireComponent(typeof(CanvasGroup))] // Ensures CanvasGroup is present
+using System.Collections;
+[RequireComponent(typeof(CanvasGroup))]
 public class FadeTextLoop : MonoBehaviour
 {
     [Tooltip("Duration of each fade phase (fade in or fade out)")]
@@ -12,7 +11,7 @@ public class FadeTextLoop : MonoBehaviour
 
     private CanvasGroup canvasGroup;
 
-    void Awake() // Use Awake to ensure CanvasGroup is ready before Start
+    void Awake() 
     {
         canvasGroup = GetComponent<CanvasGroup>();
         if (canvasGroup == null)
@@ -21,16 +20,14 @@ public class FadeTextLoop : MonoBehaviour
         }
     }
 
-    void OnEnable() // Start the coroutine when the GameObject becomes active
+    void OnEnable() 
     {
-        // Ensure the text starts fully visible (or invisible if you want to fade in first)
-        // For a fade out, start visible. For a fade in, start invisible.
-        // Let's assume we want to start by fading OUT, so text should be visible.
+     
         canvasGroup.alpha = 1f; 
         StartCoroutine(FadeLoop());
     }
 
-    void OnDisable() // Stop the coroutine when the GameObject is disabled
+    void OnDisable() 
     {
         StopAllCoroutines(); 
     }
